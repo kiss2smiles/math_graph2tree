@@ -849,9 +849,10 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         # CURRENT NUMBER EMBEDDING MATRIX M_{num}
         # current_nums_embeddings: [batch_size, num_size + constant_size, hidden_size]
 
-        # target分类器分数, y^
-        # outputs: [batch_size, num_size + constant_size + op_num]
+        # outputs: target分类器分数, y^
         outputs = torch.cat((op, num_score), 1)
+        # outputs: [batch_size, num_size + constant_size + op_num]
+
         all_node_outputs.append(outputs)
 
         # num_start: 5  = num index start
@@ -967,18 +968,18 @@ def evaluate_tree(input_batch, input_length, generate_nums,
                   output_lang, num_pos, batch_graph, beam_size=5,
                   english=False, max_length=MAX_OUTPUT_LENGTH):
 
-    # seq_mask: [1, seq_len]
     seq_mask    = torch.ByteTensor(1, input_length).fill_(0)
+    # seq_mask: [1, seq_len]
     # Turn padded arrays into (batch_size x max_len) tensors, transpose into (max_len x batch_size)
 
-    # input_var: [seq_len, 1]
     input_var   = torch.LongTensor(input_batch).unsqueeze(1)
+    # input_var: [seq_len, 1]
 
-    # batch_graph: []
     batch_graph = torch.LongTensor(batch_graph)
+    # batch_graph: [1, 5, seq_len, seq_len]
 
-    # num_mask: [1, num_size]
     num_mask = torch.ByteTensor(1, len(num_pos) + len(generate_nums)).fill_(0)
+    # num_mask: [1, num_size]
 
     # Set to not-training mode to disable dropout
     encoder.eval()
@@ -986,8 +987,8 @@ def evaluate_tree(input_batch, input_length, generate_nums,
     generate.eval()
     merge.eval()
 
-    # padding_hidden: [1, hidden_size]
     padding_hidden = torch.FloatTensor([0.0 for _ in range(predict.hidden_size)]).unsqueeze(0)
+    # padding_hidden: [1, hidden_size]
 
     batch_size = 1
     if USE_CUDA:
@@ -996,27 +997,35 @@ def evaluate_tree(input_batch, input_length, generate_nums,
         padding_hidden = padding_hidden.cuda()
         num_mask       = num_mask.cuda()
         batch_graph    = batch_graph.cuda()
-    print("input_var size = ", input_var.size())
-    print("seq_mask size = ", seq_mask.size())
-    print("padding_hidden size = ", padding_hidden.size())
-    print("num_mask size = ", num_mask.size())
-    print("batch_graph size = ", batch_graph.size())
-    exit(0)
+        # input_var:      [seq_len, 1]
+        # seq_mask:       [1, seq_len]
+        # padding_hidden: [1, hidden_size]
+        # num_mask:       [1, num_size + constant_size]
+        # batch_graph:    [1, 5, seq_len, seq_len]
     # Run words through encoder
 
+    # input_var:     [seq_len, 1]
+    # input_length = [seq_len]
+    # batch_graph:   [1, 5, seq_len, seq_len]
     encoder_outputs, problem_output = encoder(input_seqs=input_var,
                                               input_lengths=[input_length],
                                               batch_graph=batch_graph)
+    # encoder_outputs: [seq_len, 1, hidden_size]
+    # problem_output:  [1, hidden_size]
 
     # Prepare input and output variables
+    # TreeNode.embedding: [1, hidden_size]
     node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
 
-    num_size = len(num_pos)
+    num_size = len(num_pos)  # num_size
+    # encoder_outputs: [seq_len, 1, hidden_size]
+    # num_pos        = [[5, 9, 20]]
     all_nums_encoder_outputs = get_all_number_encoder_outputs(encoder_outputs=encoder_outputs,
                                                               num_pos=[num_pos],
                                                               batch_size=batch_size,
                                                               num_size=num_size,
                                                               hidden_size=encoder.hidden_size)
+    # all_nums_encoder_outputs: [1, num_size, hidden_size]
     num_start = output_lang.num_start  # 5
 
     # B x P x N
@@ -1040,6 +1049,13 @@ def evaluate_tree(input_batch, input_length, generate_nums,
             # left_childs = torch.stack(b.left_childs)
             left_childs = b.left_childs
 
+            # b.node_stack(len):        [1]
+            # left_childs(len):         [1]
+            # encoder_outputs:          [seq_len, 1, hidden_size]
+            # all_nums_encoder_outputs: [1, num_size, hidden_size]
+            # padding_hidden:           [1, hidden_size]
+            # seq_mask:                 [1, seq_len]
+            # num_mask:                 [1, num_size + constant_size]
             num_score, op, current_embeddings, current_context, current_nums_embeddings = predict(
                 node_stacks=b.node_stack,
                 left_childs=left_childs,
@@ -1048,11 +1064,26 @@ def evaluate_tree(input_batch, input_length, generate_nums,
                 padding_hidden=padding_hidden,
                 seq_mask=seq_mask,
                 mask_nums=num_mask)
+            # num_score:               [1, num_size + constant_size]
+            # op / op_score:           [1, operator_size]
 
+            # GOAL VECTOR q
+            # current_embeddings:      [1, 1,                        hidden_size]
+
+            # CONTEXT VECTOR c
+            # current_context:         [1, 1,                        hidden_size]
+
+            # CURRENT NUMBER EMBEDDING MATRIX M_{num}
+            # current_nums_embeddings: [1, num_size + constant_size, hidden_size]
+
+            # out_score: [1, operator_size + num_size + constant_size]
             out_score = torch.cat((op, num_score), dim=1)
             out_score = nn.functional.log_softmax(out_score, dim=1)
+
             topv, topi = out_score.topk(beam_size)
             # topv, topi: values, indexes
+            # topv = values:  [1, beam_size]
+            # topi = indexes: [1, beam_size]
 
             for tv, ti in zip(topv.split(1, dim=1), topi.split(1, dim=1)):
                 current_node_stack = copy_list(b.node_stack)
@@ -1065,32 +1096,57 @@ def evaluate_tree(input_batch, input_length, generate_nums,
 
                 node = current_node_stack[0].pop()
 
+                # 预测的结果为运算符
                 if out_token < num_start:
                     generate_input = torch.LongTensor([out_token])
                     if USE_CUDA:
                         generate_input = generate_input.cuda()
 
+                    # current_embeddings: [1, 1, hidden_size] = goal vector q
+                    # generate_input:     [1]                 = token_embedding t
+                    # current_context:    [1, 1, hidden_size] = context vector c
                     left_child, right_child, node_label = generate(node_embedding=current_embeddings,
                                                                    node_label=generate_input,
                                                                    current_context=current_context)
+                    # left_child  = h_l:    [1, hidden_size]
+                    # right_child = h_r:    [1, hidden_size]
+                    # node_label  = e(y|P): [1, embedding_size]
 
-                    current_node_stack[0].append(TreeNode(embedding=right_child))
-                    current_node_stack[0].append(TreeNode(embedding=left_child, left_flag=True))
+                    # 生成新的右孩子节点, r.embedding: [1, hidden_size]
+                    current_node_stack[0].append(
+                        TreeNode(embedding=right_child))
+
+                    # 生成新的左孩子节点, r.embedding: [1, hidden_size]
+                    current_node_stack[0].append(
+                        TreeNode(embedding=left_child, left_flag=True))
+
+                    # 更新非叶子节点的Sub Tree embedding = 当前节点的token embedding
                     current_embeddings_stacks[0].append(
-                        TreeEmbedding(embedding=node_label[0].unsqueeze(0), terminal=False))
+                        TreeEmbedding(embedding=node_label[0].unsqueeze(0), terminal=False))  # terminal=False: 非叶子节点
+                    # sub_tree embedding = node_label: [1, embedding_size]
 
+                # 预测的结果为运算数
                 else:
+                    # update sub tree embedding = t
                     current_num = current_nums_embeddings[0, out_token - num_start].unsqueeze(0)
                     while len(current_embeddings_stacks[0]) > 0 and current_embeddings_stacks[0][-1].terminal:
-                        sub_stree = current_embeddings_stacks[0].pop()
-                        op        = current_embeddings_stacks[0].pop()
+                        sub_stree = current_embeddings_stacks[0].pop()  # 左孩子节点
+                        op        = current_embeddings_stacks[0].pop()  # 右孩子节点
+
+                        # 更新叶子节点的Tree embedding
+                        # 如果此时为右孩子节点，则通过左孩子节点和右孩子节点的subtree embedding来更新根节点的subtree embedding
+
+                        # op.embedding:          [1, embedding_size] = parent node token embedding = e(y^|P)
+                        # sub_stree.embedding:   [1,    hidden_size] =  left_sub_tree_embedding    = t_l
+                        # current_num.embedding: [1,    hidden_size] = right_sub_tree_embedding    = t_r
                         current_num = merge(node_embedding=op.embedding,
                                             sub_tree_1=sub_stree.embedding,
                                             sub_tree_2=current_num)
 
-                    current_embeddings_stacks[0].append(TreeEmbedding(current_num, True))
+                    current_embeddings_stacks[0].append(TreeEmbedding(current_num, True))  # terminal=True: 叶子节点
 
-                if len(current_embeddings_stacks[0]) > 0 and current_embeddings_stacks[0][-1].terminal:
+                # current_left_childs记录所有的sub-tree embeddings, 并且在生成新节点时更新
+                if len(current_embeddings_stacks[0]) > 0 and current_embeddings_stacks[0][-1].terminal:  # 最近一个节点为叶子节点(操作数)
                     current_left_childs.append(current_embeddings_stacks[0][-1].embedding)
                 else:
                     current_left_childs.append(None)
@@ -1105,7 +1161,7 @@ def evaluate_tree(input_batch, input_length, generate_nums,
         beams = beams[:beam_size]
         flag = True
         for b in beams:
-            if len(b.node_stack[0]) != 0:
+            if len(b.node_stack[0]) != 0:  # 此时还可以继续生成新的节点
                 flag = False
         if flag:
             break
