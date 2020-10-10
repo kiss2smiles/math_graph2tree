@@ -19,6 +19,8 @@
 
 $left \_\ childs:$ 
 
+![](http://latex.codecogs.com/gif.latex?left\_childs)
+
 ![t1_left_childs](material/t1_l.png)
 
 ##### (2) $t_{2}(operator)$
