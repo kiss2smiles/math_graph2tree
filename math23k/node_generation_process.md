@@ -17,7 +17,7 @@
 
 ![t1_output](material/t1.png)
 
-$left \_{} childs:$ 
+$left \_\ childs:$ 
 
 ![t1_left_childs](material/t1_l.png)
 
