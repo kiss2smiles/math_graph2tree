@@ -17,9 +17,9 @@
 
 ![t1_output](material/t1.png)
 
-$left \_\ childs:$ 
+$left \_ childs:$ 
 
-![](http://latex.codecogs.com/gif.latex?left\_childs)
+![](http://latex.codecogs.com/gif.latex?left\\_childs)
 
 ![t1_left_childs](material/t1_l.png)
 
