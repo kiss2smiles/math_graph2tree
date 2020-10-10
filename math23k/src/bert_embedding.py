@@ -26,10 +26,13 @@ vocab_path = os.path.join(bert_path, 'vocab_digit.txt')
 tokenizer = BertTokenizer.from_pretrained(vocab_path)
 
 
-def get_embedding(seq):
+def get_embedding(seq, max_seq_len=10):
     tokens = tokenizer.tokenize(seq)
+    tokens = tokens[:max_seq_len]
+
     input_len = len(tokens)
     input_ids = tokenizer.convert_tokens_to_ids(tokens)
+
     attention_mask = [1] * input_len
     token_type_ids = [0] * input_len
 

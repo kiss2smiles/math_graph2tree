@@ -138,6 +138,15 @@ with open("data/input_vocab.json", "w", encoding="utf-8") as writer:
 with open("data/output_vocab.json", "w", encoding="utf-8") as writer:
     json.dump(output_lang.word2index, writer, ensure_ascii=False, indent=4)
 
+# output_vocab:
+# {
+#   '*': 0, '-': 1, '+': 2, '/': 3, '^': 4,
+#   '1': 5, '3.14': 6,
+#   'N0': 7,  'N1': 8,  'N2':  9,  'N3':  10, 'N4':  11, 'N5':  12, 'N6':  13, 'N7': 14,
+#   'N8': 15, 'N9': 16, 'N10': 17, 'N11': 18, 'N12': 19, 'N13': 20, 'N14': 21,
+#   'UNK': 22
+# }
+
 # output_lang.n_words: 23
 # copy_nums: 15
 # len(generate_nums): 2
@@ -176,41 +185,71 @@ for epoch in range(n_epochs):
     generate_scheduler.step()
     merge_scheduler.step()
     loss_total = 0
-    input_batches, input_lengths, output_batches, output_lengths,\
-    nums_batches, num_stack_batches, num_pos_batches, num_size_batches, num_value_batches, \
+    input_batches, input_lengths,     output_batches,  output_lengths,\
+    nums_batches,  num_stack_batches, num_pos_batches, num_size_batches, num_value_batches, \
     graph_batches = prepare_train_batch(train_pairs, batch_size)
 
     print("epoch:", epoch + 1)
     start = time.time()
 
     # ** 原始文本的单词在词典中的索引
-    #   input_batches[idx] =  [154, 285, 157, 545, 65, 746, 42, 286, 285, 287, 151, 289, 290, 291, 114, 26, 154, 155, 1561, 1, 59, 103, 157, 155, 42, 287, 423, 289, 26, 157, 155, 289, 1, 59, 103, 156, 135, 150, 1, 61, 13, 154, 155, 58, 59, 114, 1, 61, 26, 157, 155, 58, 59, 114, 1, 61, 13, 605, 286, 285, 287, 151, 995, 150, 34, 61, 52]
+    #   input_batches[idx] =  [1513, 324, 1000, 1000, 488,  118,  681, 965, 26,  129,
+    #                          1513, 6,   965,  126,  253,  564,  85,  676, 6,   1,
+    #                          26,   398, 1513, 2247, 1000, 1000, 1,   229, 103, 26,
+    #                          1513, 324, 1000, 1000, 965,  229,  126, 6,   91,  71,
+    #                          1,    325, 1,    13,   564,  85,   177, 965, 34,  229,
+    #                          52]
+
     # ** 原始文本的单词序列的长度
-    #   input_lengths[idx] =  67
+    #   input_lengths[idx] =  51
+
     # ** 输出公式的单词在词典中的索引
-    #   output_batches[idx] =  [2, 2, 0, 2, 7, 8, 10, 0, 8, 11, 9, 0, 0, 0, 0, 0, 0]
+    #   output_batches[idx] =  [3, 8, 1, 7, 3, 9, 2, 9, 10]
+
     # ** 输出公式的单词序列的长度
-    #   output_lengths[idx] =  11
+    #   output_lengths[idx] =  9
+
+    # ** 文本中不重复的数字个数 = len(num)
+    #   num_batches[idx][0] = 4
+
     # ** num_stack
     #   num_stack_batches[idx] =  []
-    # ** 文本中的数字个数
-    #   num_size_batches[idx] =  5
-    # ** 文本中出现的数字的个数 (数据集中的常数在output_vocab中的索引位置)
-    #   generate_num_ids = [5, 6]
+
     # ** 文本中的数字在原始文本中的位置
-    #   num_pos_batches[idx][0] =  [19, 32, 38, 46, 54]
+    #   num_pos_batches[idx][0] =  [19, 26, 40, 42]
+
+    # ** 文本中的数字个数 = len(num_pos)
+    #   num_size_batches[idx][0] =  4
+
+    # ** 文本中的数字的值
+    #   num_value_batches[idx][0] = ['60%', '20', '2', '3']
+
+    # ** 常数在output_vocab中的索引位置
+    #   generate_num_ids = [5, 6]
+
     for idx in range(len(input_lengths)):
         opr_input = ['+', '-', '*', '/', '^']
         num_value_batch = num_value_batches[idx]
+
+        # total_len: max_num_size
         total_len = len(generate_nums) + max([len(num_value_batch[idx1]) for idx1 in range(batch_size)])
-        current_opr_embedding2 = torch.zeros(batch_size, 5, 1, 1024)
+
+        # current_opr_embedding2: [batch_size, operator_size, 1, 1024]
+        # current_num_embedding2: [batch_size, number_size + constant_size, 10, 1024]
+        current_opr_embedding2 = torch.zeros(batch_size, 5,         1,  1024)
         current_num_embedding2 = torch.zeros(batch_size, total_len, 10, 1024)
+
+        # 利用bert embedding 初始化number embedding
         for idx1 in range(batch_size):
+            # numbers: ['1', '3.14', '4', '1', '10', '7', '8']
             for idx2, item in enumerate(generate_nums + num_value_batch[idx1]):
-                embedding = get_embedding(item)
-                item_len = embedding.size(0)
+                embedding = get_embedding(item, max_seq_len=10)
+                item_len  = embedding.size(0)
                 current_num_embedding2[idx1, idx2, :item_len] = embedding
+
+        # 利用bert embedding 初始化operator embedding
         for idx1 in range(batch_size):
+            # opr_input: ['+', '-', '*', '/', '^']
             for idx2, item in enumerate(opr_input):
                 embedding = get_embedding(item)
                 current_opr_embedding2[idx1, idx2] = embedding

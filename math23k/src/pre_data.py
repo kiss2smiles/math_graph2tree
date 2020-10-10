@@ -732,7 +732,7 @@ def change_num(num):
 
 
 # num net graph
-def get_lower_num_graph(max_len, sentence_length, num_list, id_num_list,contain_zh_flag=True):
+def get_lower_num_graph(max_len, sentence_length, num_list, id_num_list, contain_zh_flag=True):
     diag_ele = np.zeros(max_len)
     num_list = change_num(num_list)
     for i in range(sentence_length):
@@ -749,7 +749,7 @@ def get_lower_num_graph(max_len, sentence_length, num_list, id_num_list,contain_
     return graph
 
 
-def get_greater_num_graph(max_len, sentence_length, num_list, id_num_list,contain_zh_flag=True):
+def get_greater_num_graph(max_len, sentence_length, num_list, id_num_list, contain_zh_flag=True):
     diag_ele = np.zeros(max_len)
     num_list = change_num(num_list)
     for i in range(sentence_length):
@@ -767,7 +767,7 @@ def get_greater_num_graph(max_len, sentence_length, num_list, id_num_list,contai
 
 
 # attribute between graph
-def get_attribute_between_graph(input_batch, max_len, id_num_list, sentence_length, quantity_cell_list,contain_zh_flag=True):
+def get_attribute_between_graph(input_batch, max_len, id_num_list, sentence_length, quantity_cell_list, contain_zh_flag=True):
     diag_ele = np.zeros(max_len)
     for i in range(sentence_length):
         diag_ele[i] = 1
@@ -790,7 +790,7 @@ def get_attribute_between_graph(input_batch, max_len, id_num_list, sentence_leng
 
 
 # quantity between graph
-def get_quantity_between_graph(max_len, id_num_list, sentence_length, quantity_cell_list,contain_zh_flag=True):
+def get_quantity_between_graph(max_len, id_num_list, sentence_length, quantity_cell_list, contain_zh_flag=True):
     diag_ele = np.zeros(max_len)
     for i in range(sentence_length):
         diag_ele[i] = 1
@@ -810,7 +810,7 @@ def get_quantity_between_graph(max_len, id_num_list, sentence_length, quantity_c
 
 
 # quantity cell graph
-def get_quantity_cell_graph(max_len, id_num_list, sentence_length, quantity_cell_list,contain_zh_flag=True):
+def get_quantity_cell_graph(max_len, id_num_list, sentence_length, quantity_cell_list, contain_zh_flag=True):
     diag_ele = np.zeros(max_len)
     for i in range(sentence_length):
         diag_ele[i] = 1
@@ -832,13 +832,23 @@ def get_single_batch_graph(input_batch, input_length, group, num_value, num_pos)
     for i in range(len(input_length)):
 
         # ** 原始位置中的单词在词典中的索引
-        # input_batch_t      =  [545, 65, 149, 42, 286, 423, 628, 287, 423, 26, 154, 65, 58, 59, 114, 1, 61, 26, 157, 65, 58, 59, 114, 1, 61, 13, 398, 157, 65, 91, 154, 65, 881, 1, 61, 112, 26, 154, 65, 367, 114, 23, 295, 6, 1, 13, 801, 286, 423, 8, 287, 423, 6, 430, 13]
+        # input_batch_t      =  [545, 65,  149, 42,  286, 423, 628, 287, 423, 26,
+        #                        154, 65,  58,  59,  114, 1,   61,  26,  157, 65,
+        #                        58,  59,  114, 1,   61,  13,  398, 157, 65,  91,
+        #                        154, 65,  881, 1,   61,  112, 26,  154, 65,  367,
+        #                        114, 23,  295, 6,   1,   13,  801, 286, 423, 8,
+        #                        287, 423, 6,   430, 13]
+
         # ** 原始文本中的单词个数
         # sentence_length    =  55
-        # ** group_num_list
-        # quantity_cell_list =  [14, 15, 16, 22, 23, 24, 25, 30, 31, 32, 33, 41, 42, 43, 44]
+
+        # ** 原始文本中与数字相关的所有单词信息
+        # quantity_cell_list =  [14, 15, 16, 22, 23, 24, 25, 30, 31, 32,
+        #                        33, 41, 42, 43, 44]
+
         # ** 原始文本中的所有数字
         # num_list           =  ['80', '120', '200', '40%']
+
         # ** 原始文本中的数字在文本中的位置  num_list
         # id_num_list        =  [15, 23, 33, 44]
 
@@ -849,13 +859,34 @@ def get_single_batch_graph(input_batch, input_length, group, num_value, num_pos)
         id_num_list        = num_pos[i]
 
         # build quantity cell graph
-        graph_newc    = get_quantity_cell_graph(max_len, id_num_list, sentence_length, quantity_cell_list)
-        graph_greater = get_greater_num_graph(max_len, sentence_length, num_list, id_num_list)
-        graph_lower   = get_lower_num_graph(max_len, sentence_length, num_list, id_num_list)
+        graph_newc    = get_quantity_cell_graph(max_len=max_len,
+                                                id_num_list=id_num_list,
+                                                sentence_length=sentence_length,
+                                                quantity_cell_list=quantity_cell_list)
+
+        # Quantity Comparison Graph
+        graph_greater = get_greater_num_graph(max_len=max_len,
+                                              sentence_length=sentence_length,
+                                              num_list=num_list,
+                                              id_num_list=id_num_list)
+
+        graph_lower   = get_lower_num_graph(max_len=max_len,
+                                            sentence_length=sentence_length,
+                                            num_list=num_list,
+                                            id_num_list=id_num_list)
 
         # build quantity comparison graph
-        graph_quanbet = get_quantity_between_graph(max_len, id_num_list, sentence_length, quantity_cell_list)
-        graph_attbet  = get_attribute_between_graph(input_batch_t, max_len, id_num_list, sentence_length, quantity_cell_list)
+        graph_quanbet = get_quantity_between_graph(max_len=max_len,
+                                                   id_num_list=id_num_list,
+                                                   sentence_length=sentence_length,
+                                                   quantity_cell_list=quantity_cell_list)
+
+        # Quantity Cell Graph
+        graph_attbet  = get_attribute_between_graph(input_batch=input_batch_t,
+                                                    max_len=max_len,
+                                                    id_num_list=id_num_list,
+                                                    sentence_length=sentence_length,
+                                                    quantity_cell_list=quantity_cell_list)
 
         graph_total   = [graph_newc.tolist(), graph_greater.tolist(), graph_lower.tolist(), graph_quanbet.tolist(), graph_attbet.tolist()]
         batch_graph.append(graph_total)
@@ -918,8 +949,8 @@ def prepare_train_batch(pairs_to_batch, batch_size):
 
         input_lengths.append(input_length)
         output_lengths.append(output_length)
-        input_len_max = input_length[0]
-        output_len_max = max(output_length)
+        input_len_max  = input_length[0]     # max_seq_len
+        output_len_max = max(output_length)  # max_tgt_len
         input_batch = []
         output_batch = []
         num_batch = []
@@ -929,14 +960,37 @@ def prepare_train_batch(pairs_to_batch, batch_size):
         group_batch = []
         num_value_batch = []
 
-        # i =  [2, 658, 2524, 507, 813, 405, 1, 66, 2, 2525, 26, 58, 66, 2389, 1, 184, 26, 2, 207, 2, 425, 730, 26, 58, 66, 6, 512, 246, 2389, 6, 1, 26, 905, 513, 26, 58, 66, 518, 512, 26, 846, 2, 2, 1, 184, 26, 507, 2526, 207, 324, 2110, 2527, 813, 2, 654, 103, 26, 520, 1, 184, 512, 26, 468, 207, 507, 521, 425, 26, 2528, 23, 2048, 2525, 52]
+        # ** input sequence tokens index
+        # i =  [2,    658,  2524, 507,  813, 405, 1,   66,   2,    2525,
+        #       26,   58,   66,   2389, 1,   184, 26,  2,    207,  2,
+        #       425,  730,  26,   58,   66,  6,   512, 246,  2389, 6,
+        #       1,    26,   905,  513,  26,  58,  66,  518,  512,  26,
+        #       846,  2,    2,    1,    184, 26,  507, 2526, 207,  324,
+        #       2110, 2527, 813,  2,    654, 103, 26,  520,  1,    184,
+        #       512,  26,   468,  207,  507, 521, 425, 26,   2528, 23,
+        #       2048, 2525, 52]
+
+        # ** input sequence tokens len
         # li =  73
-        # j =  [3, 1, 0, 0, 7, 8, 9, 11, 2, 0, 8, 9, 10]
+
+        # ** output sequence tokens index
+        # j =  [3, 1, 0, 0, 7, 8, 9, 11, 2, 0,
+        #       8, 9, 10]
+
+        # ** output sequence tokens len
         # lj =  13
+
+        # ** numbers in input sentence text
         # num =  ['10000', '7.5', '4%', '8.2', '2966']
+
+        # ** tokens index in input sentence text
         # num_pos =  [6, 14, 30, 43, 58]
+
         # num_stack =  []
-        # group =  [5, 6, 7, 13, 14, 15, 29, 30, 31, 43, 44, 45, 57, 58, 59, 69, 70, 71]  // 与数字相关的所有单词
+
+        # ** correrated attributes and original numbers node in input sentence text
+        # group =  [5,  6,  7,  13, 14, 15, 29, 30, 31, 43,
+        #           44, 45, 57, 58, 59, 69, 70, 71]
         for i, li, j, lj, num, num_pos, num_stack, group in batch:
             num_batch.append(len(num))
             input_batch.append(pad_seq(i, li, input_len_max))
@@ -948,21 +1002,34 @@ def prepare_train_batch(pairs_to_batch, batch_size):
             group_batch.append(group)
 
         # ** 原始文本中单词在词表中的索引
-        # input_batch =  [329, 777, 239, 1, 72, 26, 507, 434, 2369, 23, 681, 26, 137, 2369, 6, 239, 2201, 103, 26, 2370, 246, 1, 26, 2369, 6, 239, 2371, 625, 504, 26, 2, 1, 26, 27, 2, 112, 28, 254, 6, 1432, 246, 1, 26, 801, 325, 2369, 34, 72, 239, 13]
+        # input_batch =  [329, 777, 239, 1,    72,  26,   507,  434, 2369, 23,
+        #                 681, 26,  137, 2369, 6,   239,  2201, 103, 26,   2370,
+        #                 246, 1,   26,  2369, 6,   239,  2371, 625, 504,  26,
+        #                 2,   1,   26,  27,   2,   112,  28,   254, 6,    1432,
+        #                 246, 1,   26,  801,  325, 2369, 34,   72,  239,  13]
+
         # ** 输出公式中的数字个数
         # num_batch =  4
+
         # ** 输出公式中的单词在词表中的索引
-        # output_batch =  [3, 0, 7, 1, 8, 10, 2, 8, 9, 0, 0, 0, 0, 0, 0, 0, 0]
-        # **
+        # output_batch =  [3, 0, 7, 1, 8, 10, 2, 8, 9, 0,
+        #                  0, 0, 0, 0, 0, 0, 0]
+
+        # ** num_stack
         # num_stack_batch =  []
+
         # ** 输出公式中的数字在原始文本中的位置
         # num_pos_batch =  [3, 21, 31, 41]
+
         # ** 输出公式中的数字个数
         # num_size_batch =  4
+
         # ** 原始文本中的所有数字
         # num_value_batch =  ['1000', '40%', '60%', '32%']
+
         # ** 原始文本中的所有group_num
-        # group_batch =  [2, 3, 4, 20, 21, 22, 31, 32, 33, 42, 43, 44, 49, 50, 51, 52]
+        # group_batch =  [2,  3,  4,  20, 21, 22, 31, 32, 33, 42,
+        #                 43, 44, 49, 50, 51, 52]
 
         input_batches.append(input_batch)
         nums_batches.append(num_batch)
@@ -972,7 +1039,11 @@ def prepare_train_batch(pairs_to_batch, batch_size):
         num_size_batches.append(num_size_batch)
         num_value_batches.append(num_value_batch)
         group_batches.append(group_batch)
-        graph_batch = get_single_batch_graph(input_batch, input_length, group_batch, num_value_batch, num_pos_batch)
+        graph_batch = get_single_batch_graph(input_batch=input_batch,
+                                             input_length=input_length,
+                                             group=group_batch,
+                                             num_value=num_value_batch,
+                                             num_pos=num_pos_batch)
         graph_batches.append(graph_batch)
 
     return input_batches, input_lengths, output_batches, output_lengths, \
