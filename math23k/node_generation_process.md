@@ -15,7 +15,7 @@
 
 ##### (1) $t_{1}(operator)$ 
 
-![t1 output](material/t1.png)
+![t1_output](material/t1.png)
 
 $left \_ childs:$ 
 
@@ -25,7 +25,7 @@ $left \_ childs:$
 
 ![t2_output](material/t2.png)
 
-$left\_childs:$ 
+$left _ childs:$ 
 
 ![t2_left_childs](material/t2_l.png)
 
