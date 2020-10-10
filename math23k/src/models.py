@@ -136,12 +136,17 @@ class Score(nn.Module):
         # hidden:         (q; c)
         # num_embeddings: e(y|P)
         energy_in = torch.cat((hidden, num_embeddings), 2)
+        # energy_in: (q; c; e(y|P))
         # energy_in: [batch_size, num_size + constant_size, 3*hidden_size]
 
         energy_in = energy_in.view(-1, self.input_size + self.hidden_size)
         # energy_in: [batch_size * (num_size + constant_size), 3*hidden_size]
 
         # 1. Top-Down Goal Decomposition
+        # self.attn:  W_{s} (q; c; e(y|P))
+        # torch.tanh: tanh( W_{s} (q; c; e(y|P)) )
+        # self.score: w_{n}^{T} tanh( W_{s} (q; c; e(y|P)) )
+
         # score: s(y|q; c; P) = s(y|q; c; e(y|P))
         score = self.score(torch.tanh(self.attn(energy_in)))  # (B x O) x 1
         # score: [batch_size * (num_size + constant_size), 1]
@@ -303,19 +308,24 @@ class Prediction(nn.Module):
                 mask_nums):
 
         current_embeddings = []
-        for st in node_stacks:
+        for st in node_stacks:  # node_stacks记录节点的goal vector q
             if len(st) == 0:
                 current_embeddings.append(padding_hidden)
             else:
                 current_node = st[-1]
                 current_embeddings.append(current_node.embedding)
+        # ** left_childs:        subtree embedding t
+        # ** current_embeddings: goal vector q
+        # len(left_childs):        batch_size
+        # len(current_embeddings): batch_size
+        # left_childs item:        [1, hidden_size]
+        # current_embeddings item: [1, hidden_size]
         # 初始时，current_embeddings为problem_output
 
-        # len(current_node_temp): batch_size
-        current_node_temp = []
+        current_node_temp = []  # updated goal vector q
         for l, c in zip(left_childs, current_embeddings):
             if l is None:  # left sub-tree embedding is None, generate left child node
-                # 在初始化根节点时，h_l为h_{s}^{p}，即Encoder的final hidden state输出
+                # 在初始化根节点时，h_l为problem_text
 
                 # 2. Left Sub-Goal Generation
                 # 若此时左子树为空，则生成左孩子节点
@@ -334,14 +344,13 @@ class Prediction(nn.Module):
                 g  = torch.tanh(   self.concat_r( torch.cat((ld, c), 1)))  # Q_{re}
                 t  = torch.sigmoid(self.concat_rg(torch.cat((ld, c), 1)))  # g_r
                 current_node_temp.append(g * t)                            # q_r
+        # len(current_node_temp): batch_size
+        # current_node_temp item: [1, hidden_size]
 
         current_node = torch.stack(current_node_temp)
+        current_embeddings = self.dropout(current_node)
         # current_node: goal vector q
         # current_node: [batch_size, 1, hidden_size]
-
-        current_embeddings = self.dropout(current_node)
-        # current_embeddings: goal vector q
-        # current_embeddings: [batch_size, 1, hidden_size]
 
         # current_embeddings: goal vector q
         # encoder_outputs:    final hidden state h_{s}^{p}
@@ -350,9 +359,9 @@ class Prediction(nn.Module):
         # encoder_outputs:    [seq_len, batch_size, hidden_size]
         current_attn = self.attn(current_embeddings.transpose(0, 1), encoder_outputs, seq_mask)
         # 1. Top-Down Goal Decomposition
-        # current_attn: a_{s}
         # current_attn: [batch_size, 1, seq_len]
 
+        # current_attn:    a_{s}
         # encoder_outputs: final hidden state h_{s}^{p}
         current_context = current_attn.bmm(encoder_outputs.transpose(0, 1))  # B x 1 x N
         # 1. Top-Down Goal Decomposition
@@ -380,6 +389,7 @@ class Prediction(nn.Module):
         # current_node:    goal    vector q
         # current_context: context vector c
         leaf_input = torch.cat((current_node, current_context), 2)
+        # leaf_input: concat(q; c)
         # leaf_input: [batch_size, 1, 2*hidden_size]
 
         leaf_input = leaf_input.squeeze(1)
@@ -391,6 +401,7 @@ class Prediction(nn.Module):
         # max pooling the embedding_weight
         # embedding_weight: [batch_size, num_size + constant_size, hidden_size]
 
+        # embedding_weight_: token embedding e(y|P)
         embedding_weight_ = self.dropout(embedding_weight)
         # embedding_weight_: [batch_size, num_size + constant_size, hidden_size]
 

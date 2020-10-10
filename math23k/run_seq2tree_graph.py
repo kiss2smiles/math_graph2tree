@@ -227,58 +227,58 @@ for epoch in range(n_epochs):
     # ** 常数在output_vocab中的索引位置
     #   generate_num_ids = [5, 6]
 
-    # for idx in range(len(input_lengths)):
-    #     opr_input = ['+', '-', '*', '/', '^']
-    #     num_value_batch = num_value_batches[idx]
-    #     batch_size      = len(num_value_batch)
-    #
-    #     # total_len: max_num_size
-    #     total_len = len(generate_nums) + max([len(num_value_batch[idx1]) for idx1 in range(batch_size)])
-    #
-    #     # current_opr_embedding2: [batch_size, operator_size, 1, 1024]
-    #     # current_num_embedding2: [batch_size, number_size + constant_size, 10, 1024]
-    #     current_opr_embedding2 = torch.zeros(batch_size, 5,         1,  1024)
-    #     current_num_embedding2 = torch.zeros(batch_size, total_len, 10, 1024)
-    #
-    #     # 利用bert embedding 初始化number embedding
-    #     for idx1 in range(batch_size):
-    #         # numbers: ['1', '3.14', '4', '1', '10', '7', '8']
-    #         for idx2, item in enumerate(generate_nums + num_value_batch[idx1]):
-    #             embedding = get_embedding(item, max_seq_len=10)
-    #             item_len  = embedding.size(0)
-    #             current_num_embedding2[idx1, idx2, :item_len] = embedding
-    #
-    #     # 利用bert embedding 初始化operator embedding
-    #     for idx1 in range(batch_size):
-    #         # opr_input: ['+', '-', '*', '/', '^']
-    #         for idx2, item in enumerate(opr_input):
-    #             embedding = get_embedding(item)
-    #             current_opr_embedding2[idx1, idx2] = embedding
-    #
-    #     loss = train_tree(
-    #         input_batch=input_batches[idx],
-    #         input_length=input_lengths[idx],
-    #         target_batch=output_batches[idx],
-    #         target_length=output_lengths[idx],
-    #         nums_stack_batch=num_stack_batches[idx],
-    #         num_size_batch=num_size_batches[idx],
-    #         generate_nums=generate_num_ids,
-    #         encoder=encoder,
-    #         predict=predict,
-    #         generate=generate,
-    #         merge=merge,
-    #         encoder_optimizer=encoder_optimizer,
-    #         predict_optimizer=predict_optimizer,
-    #         generate_optimizer=generate_optimizer,
-    #         merge_optimizer=merge_optimizer,
-    #         output_lang=output_lang,
-    #         num_pos=num_pos_batches[idx],
-    #         batch_graph=graph_batches[idx])
-    #     loss_total += loss
-    #
-    # print("loss:", loss_total / len(input_lengths))
-    # print("training time", time_since(time.time() - start))
-    # print("--------------------------------")
+    for idx in range(len(input_lengths)):
+        opr_input = ['+', '-', '*', '/', '^']
+        num_value_batch = num_value_batches[idx]
+        batch_size      = len(num_value_batch)
+
+        # total_len: max_num_size
+        total_len = len(generate_nums) + max([len(num_value_batch[idx1]) for idx1 in range(batch_size)])
+
+        # current_opr_embedding2: [batch_size, operator_size, 1, 1024]
+        # current_num_embedding2: [batch_size, number_size + constant_size, 10, 1024]
+        current_opr_embedding2 = torch.zeros(batch_size, 5,         1,  1024)
+        current_num_embedding2 = torch.zeros(batch_size, total_len, 10, 1024)
+
+        # 利用bert embedding 初始化number embedding
+        for idx1 in range(batch_size):
+            # numbers: ['1', '3.14', '4', '1', '10', '7', '8']
+            for idx2, item in enumerate(generate_nums + num_value_batch[idx1]):
+                embedding = get_embedding(item, max_seq_len=10)
+                item_len  = embedding.size(0)
+                current_num_embedding2[idx1, idx2, :item_len] = embedding
+
+        # 利用bert embedding 初始化operator embedding
+        for idx1 in range(batch_size):
+            # opr_input: ['+', '-', '*', '/', '^']
+            for idx2, item in enumerate(opr_input):
+                embedding = get_embedding(item)
+                current_opr_embedding2[idx1, idx2] = embedding
+
+        loss = train_tree(
+            input_batch=input_batches[idx],
+            input_length=input_lengths[idx],
+            target_batch=output_batches[idx],
+            target_length=output_lengths[idx],
+            nums_stack_batch=num_stack_batches[idx],
+            num_size_batch=num_size_batches[idx],
+            generate_nums=generate_num_ids,
+            encoder=encoder,
+            predict=predict,
+            generate=generate,
+            merge=merge,
+            encoder_optimizer=encoder_optimizer,
+            predict_optimizer=predict_optimizer,
+            generate_optimizer=generate_optimizer,
+            merge_optimizer=merge_optimizer,
+            output_lang=output_lang,
+            num_pos=num_pos_batches[idx],
+            batch_graph=graph_batches[idx])
+        loss_total += loss
+
+    print("loss:", loss_total / len(input_lengths))
+    print("training time", time_since(time.time() - start))
+    print("--------------------------------")
 
     # batch[0]: 单词在词表中的索引位置
     #   eg: [207, 35, 796, 2, 6, 1, 197, 481, 23, 1, 30, 484, 26, 58, 3269, 484, 1088, 6, 1903, 71, 1, 16, 26, 49, 796, 6, 439, 75, 34, 16, 52]

@@ -737,7 +737,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
     # sequence mask for attention
     seq_mask = []
-    max_len = max(input_length)  # 最大的源序列长度
+    max_len = max(input_length)  # seq_len = max_len
 
     # seq_mask: 未被mask的部分填充为0，被mask的部分填充为1
     for i in input_length:
@@ -747,12 +747,12 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
     # sequence num mask for attention
     num_mask = []
-    max_num_size = max(num_size_batch) + len(generate_nums)  # 文本中的常数的个数
+    max_num_size = max(num_size_batch) + len(generate_nums)  # max_num_size = num_size + constant_size
     for i in num_size_batch:
         d = i + len(generate_nums)
         num_mask.append([0] * d + [1] * (max_num_size - d))
     num_mask = torch.ByteTensor(num_mask)
-    # num_mask: [batch_size, tgt_len]
+    # num_mask: [batch_size, num_size + constant_size]
 
     unk = output_lang.word2index["UNK"]  # 22
 
@@ -760,11 +760,13 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     input_var   = torch.LongTensor(input_batch ).transpose(0, 1)
     target      = torch.LongTensor(target_batch).transpose(0, 1)
     batch_graph = torch.LongTensor(batch_graph)
-    # input_var: [batch_size, seq_len] => [seq_len, batch_size]
-    # target:    [batch_size, tgt_len] => [tgt_len, batch_size]
+    # input_var:   [batch_size, seq_len] => [seq_len, batch_size]
+    # target:      [batch_size, tgt_len] => [tgt_len, batch_size]
     # batch_graph: [batch_size, 5, seq_len, seq_len]
 
     padding_hidden = torch.FloatTensor([0.0 for _ in range(predict.hidden_size)]).unsqueeze(0)
+    # padding_hidden: [1, hidden_size]
+
     batch_size = len(input_length)
 
     encoder.train()
@@ -778,6 +780,11 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         padding_hidden = padding_hidden.cuda()
         num_mask       = num_mask.cuda()
         batch_graph    = batch_graph.cuda()
+    # input_var:      [seq_len, batch_size]
+    # seq_mask:       [batch_size, seq_len]
+    # padding_hidden: [1,      hidden_size]
+    # num_mask:       [batch_size, num_size + constant_size]
+    # batch_graph:    [batch_size, 5, seq_len, seq_len]
 
     # Zero gradients of both optimizers
     encoder_optimizer.zero_grad()
@@ -794,12 +801,10 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     encoder_outputs, problem_output = encoder(input_seqs=input_var,
                                               input_lengths=input_length,
                                               batch_graph=batch_graph)
+    # ** encoder_outputs: final_hidden_states h_{s}^{p}
+    # ** problem_output:  root node n0 goal vector q0 = h_{n}^{p} + h_{0}^{p}
     # encoder_outputs: [seq_len, batch_size, hidden_size]
     # problem_output:  [batch_size, hidden_size]
-
-    # node_stacks: expression node outputs
-    # node_embedding: [1, hidden_size]
-    node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]  # len = batch_size
 
     max_target_length = max(target_length)  # 最大的公式长度
     all_node_outputs = []
@@ -807,7 +812,10 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     copy_num_len = [len(_) for _ in num_pos]
     num_size = max(copy_num_len)  # 文本中出现的数字个数
 
-    # 取出encoder中所有数字embedding
+    # 取出文本中所有数字对应embedding
+    # number   embedding 取自encoder_outputs
+    # constant embedding 取自nn.Embedding
+    # operator embedding 取自nn.Embedding
     all_nums_encoder_outputs = get_all_number_encoder_outputs(encoder_outputs=encoder_outputs,
                                                               num_pos=num_pos,
                                                               batch_size=batch_size,
@@ -819,14 +827,34 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     # num_start: output_lang.num_start = 5
     num_start = output_lang.num_start
 
-    # 先生成根节点，再生成左子树节点，最后生成右子树节点
-    embeddings_stacks = [[]   for _ in range(batch_size)]
+    # node_stacks: TreeNode, 记录节点node中的 goal vector q
+    #   初始根节点n0为goal vector q0 = problem_output
+    node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]  # [1, hidden_size]
+
+    # embedding_stacks: TreeEmbedding, 记录节点node之前的节点的subtree embedding t(list)
+    #   如果为操作符(非叶子节点),此时embedding_stacks添加operator的token embedding e(y|P)，并设置terminal=False
+    #   如果为操作数(左孩子节点),此时embedding_stacks添加operator的token embedding e(y|P)，并设置terminal=True
+    #   如果为操作数(右孩子节点),此时
+    #      初始化右孩子节点的subtree embedding t_r 为token embedding e(y|P)
+    #      弹出左孩子节点(terminal=True)的subtree embedding t_l和根节点的subtree embedding (parent t)
+    #      循环完成merge操作, 得到右孩子节点的最终subtree embedding t_r，并设置terminal=True
+    embeddings_stacks = [[] for _ in range(batch_size)]
+
+    # left_childs: 记录节点node中的subtree embedding t
+    #   如果为操作符(非叶子节点),此时left_childs输出为None
+    #   如果为操作数(左孩子节点),此时left_childs输出为左孩子节点的subtree embedding t_l
+    #   如果为操作数(右孩子节点),此时left_childs输出为右孩子节点的subtree embedding t_r
     left_childs       = [None for _ in range(batch_size)]
+
+    # 先生成根节点，再生成左子树节点，最后生成右子树节点
     for t in range(max_target_length):
         # 2. predict
-        # encoder_outputs:          [seq_len,  batch_size, hidden_size] = node representation(words)
-        # all_nums_encoder_outputs: [batch_size, num_size, hidden_size] = node representation(numbers)
-        # padding_hidden:           [1, hidden_size]
+        # encoder_outputs:          node representation(words)
+        # all_nums_encoder_outputs: node representation(numbers)
+
+        # encoder_outputs:          [seq_len,  batch_size, hidden_size]
+        # all_nums_encoder_outputs: [batch_size, num_size, hidden_size]
+        # padding_hidden:           [1,       hidden_size]
         # seq_mask:                 [batch_size, seq_len]
         # num_mask:                 [batch_size, num_size + constant_size]
         num_score, op, current_embeddings, current_context, current_nums_embeddings = predict(
@@ -838,7 +866,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
             seq_mask=seq_mask,
             mask_nums=num_mask)
         # num_score:               [batch_size, num_size + constant_size]
-        # op:                      [batch_size, op_num]  # 包含5个操作符
+        # op:                      [batch_size, operator_size]  # 包含5个操作符
 
         # GOAL VECTOR q
         # current_embeddings:      [batch_size, 1, hidden_size]
@@ -850,15 +878,15 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         # current_nums_embeddings: [batch_size, num_size + constant_size, hidden_size]
 
         # outputs: target分类器分数, y^
-        outputs = torch.cat((op, num_score), 1)
-        # outputs: [batch_size, num_size + constant_size + op_num]
+        outputs = torch.cat((op, num_score), dim=1)
+        # outputs: [batch_size, operator_size + num_size + constant_size]
 
         all_node_outputs.append(outputs)
 
         # num_start: 5  = num index start
         # unk:       22 = UNK word index
 
-        # 预测出每一个target的值
+        # 预测出每一个target的值(?)
         target_t, generate_input = generate_tree_input(target=target[t].tolist(),
                                                        decoder_output=outputs,
                                                        nums_stack_batch=nums_stack_batch,
@@ -873,16 +901,19 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         if USE_CUDA:
             generate_input = generate_input.cuda()
 
-        # 3. generate
+        # 3. generate (decompose goal vector q to q_l and q_r)
         # current_embeddings: [batch_size, 1, hidden_size]
         # generate_input:     [batch_size]
         # current_context:    [batch_size, 1, hidden_size]
         left_child, right_child, node_label = generate(node_embedding=current_embeddings,
                                                        node_label=generate_input,
                                                        current_context=current_context)
-        # left_child:  h_l    = [batch_size, hidden_size]    = 当前node的left  child的goal vector q_l
-        # right_child: h_r    = [batch_size, hidden_size]    = 当前node的right child的goal vector q_r
-        # node_label:  e(y|P) = [batch_size, embedding_size] = 当前node的token embedding
+        # ** left_child:  当前node的left  child的h_l
+        # ** right_child: 当前node的right child的h_r
+        # ** node_label:  当前node的token embedding e(y|P)
+        # left_child:  h_l    = [batch_size,    hidden_size]
+        # right_child: h_r    = [batch_size,    hidden_size]
+        # node_label:  e(y|P) = [batch_size, embedding_size]
 
         left_childs = []
         # 在每个batch中依次生成left_node, operator_node, right_node
@@ -901,13 +932,15 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
             # 生成的node为操作符
             if i < num_start:
-                # 生成新的右孩子节点的goal vector q_r, r.embedding: [1, hidden_size]
+                # 生成新的右孩子节点的h_r
+                # r.embedding: [1, hidden_size]
                 node_stack.append(TreeNode(r))
 
-                # 生成新的左孩子节点的goal vector q_l, l.embedding: [1, hidden_size]
-                node_stack.append(TreeNode(l, left_flag=True))
+                # 生成新的左孩子节点的h_l
+                # l.embedding: [1, hidden_size]
+                node_stack.append(TreeNode(l, left_flag=True))  # left_flag标志此时的node为左节点
 
-                # 更新非叶子节点的Tree embedding
+                # 更新非叶子节点的Tree embedding, 初始时为token embedding t
                 o.append(TreeEmbedding(node_label[idx].unsqueeze(0), terminal=False))  # terminal=False: 非叶子节点
                 # sub_tree embedding (operator) = current_num: [1, embedding_size]
 
@@ -923,10 +956,15 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                     op        = o.pop()  # op.terminal        = False (父节点(为操作数))
 
                     # 更新叶子节点的Tree embedding
-                    # 如果此时为右孩子节点，则通过左孩子节点和右孩子节点的subtree embedding来更新根节点的subtree embedding
-                    # op.embedding:          [1, embedding_size] = parent node token embedding = e(y^|P)
-                    # sub_stree.embedding:   [1,    hidden_size] = left_sub_tree_embedding     = t_l
-                    # current_num.embedding: [1,    hidden_size] = right_sub_tree_embedding    = t_r
+                    #   如果此时为右孩子节点，则通过左孩子节点的 subtree embedding t_l 和 右孩子节点的subtree embedding t_r
+                    #   来更新根节点的subtree embedding t
+                    # op.embedding:        parent node token embedding = e(y^|P)
+                    # sub_stree.embedding: left_sub_tree_embedding     = t_l
+                    # current_num:         right_sub_tree_embedding    = t_r
+
+                    # op.embedding:          [1, embedding_size]
+                    # sub_stree.embedding:   [1,    hidden_size]
+                    # current_num.embedding: [1,    hidden_size]
                     current_num = merge(node_embedding=op.embedding,
                                         sub_tree_1=sub_stree.embedding,
                                         sub_tree_2=current_num)
@@ -936,13 +974,13 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                 # sub_tree embedding (number) = current_num: [1, hidden_size]
 
             # 更新left_childs: left_childs记录所有的subtree embedding，并且在生成新节点时更新
-            if len(o) > 0 and o[-1].terminal:  # 此时为叶子节点，并且当前的节点此时包含左子树
+            if len(o) > 0 and o[-1].terminal:  # 此时为叶子节点
                 left_childs.append(o[-1].embedding)
             else:
-                left_childs.append(None)  # 此时为根节点
+                left_childs.append(None)  # 此时为非叶子节点
 
     all_node_outputs = torch.stack(all_node_outputs, dim=1)  # B x S x N
-    # all_node_outputs: [batch_size, tgt_len, num_size + constant_size + op_num]
+    # all_node_outputs: [batch_size, tgt_len, operator_size + num_size + constant_size]
 
     target = target.transpose(0, 1).contiguous()
     # target: [batch_size, tgt_len]
@@ -979,7 +1017,7 @@ def evaluate_tree(input_batch, input_length, generate_nums,
     # batch_graph: [1, 5, seq_len, seq_len]
 
     num_mask = torch.ByteTensor(1, len(num_pos) + len(generate_nums)).fill_(0)
-    # num_mask: [1, num_size]
+    # num_mask: [1, num_size + constant_size]
 
     # Set to not-training mode to disable dropout
     encoder.eval()
@@ -1011,11 +1049,9 @@ def evaluate_tree(input_batch, input_length, generate_nums,
                                               input_lengths=[input_length],
                                               batch_graph=batch_graph)
     # encoder_outputs: [seq_len, 1, hidden_size]
-    # problem_output:  [1, hidden_size]
+    # problem_output:  [         1, hidden_size]
 
     # Prepare input and output variables
-    # TreeNode.embedding: [1, hidden_size]
-    node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
 
     num_size = len(num_pos)  # num_size
     # encoder_outputs: [seq_len, 1, hidden_size]
@@ -1027,9 +1063,23 @@ def evaluate_tree(input_batch, input_length, generate_nums,
                                                               hidden_size=encoder.hidden_size)
     # all_nums_encoder_outputs: [1, num_size, hidden_size]
     num_start = output_lang.num_start  # 5
+    # node_stacks: TreeNode, 记录节点node中的 goal vector q
+    #   初始根节点n0为goal vector q0 = problem_output
+    node_stacks = [[TreeNode(_)] for _ in problem_output.split(1, dim=0)]
 
-    # B x P x N
+    # embedding_stacks: TreeEmbedding, 记录节点node之前的节点的subtree embedding t(list)
+    #   如果为操作符(非叶子节点),此时embedding_stacks添加operator的token embedding e(y|P)，并设置terminal=False
+    #   如果为操作数(左孩子节点),此时embedding_stacks添加operator的token embedding e(y|P)，并设置terminal=True
+    #   如果为操作数(右孩子节点),此时
+    #      初始化右孩子节点的subtree embedding t_r 为token embedding e(y|P)
+    #      弹出左孩子节点(terminal=True)的subtree embedding t_l和根节点的subtree embedding (parent t)
+    #      循环完成merge操作, 得到右孩子节点的最终subtree embedding t_r，并设置terminal=True
     embeddings_stacks = [[]   for _ in range(batch_size)]
+
+    # left_childs: 记录节点node中的subtree embedding t
+    #   如果为操作符(非叶子节点),此时left_childs输出为None
+    #   如果为操作数(左孩子节点),此时left_childs输出为左孩子节点的subtree embedding t_l
+    #   如果为操作数(右孩子节点),此时left_childs输出为右孩子节点的subtree embedding t_r
     left_childs       = [None for _ in range(batch_size)]
 
     beams = [TreeBeam(score=0.0,
@@ -1068,10 +1118,10 @@ def evaluate_tree(input_batch, input_length, generate_nums,
             # op / op_score:           [1, operator_size]
 
             # GOAL VECTOR q
-            # current_embeddings:      [1, 1,                        hidden_size]
+            # current_embeddings:      [1, 1, hidden_size]
 
             # CONTEXT VECTOR c
-            # current_context:         [1, 1,                        hidden_size]
+            # current_context:         [1, 1, hidden_size]
 
             # CURRENT NUMBER EMBEDDING MATRIX M_{num}
             # current_nums_embeddings: [1, num_size + constant_size, hidden_size]
@@ -1102,28 +1152,35 @@ def evaluate_tree(input_batch, input_length, generate_nums,
                     if USE_CUDA:
                         generate_input = generate_input.cuda()
 
-                    # current_embeddings: [1, 1, hidden_size] = goal vector q
-                    # generate_input:     [1]                 = token_embedding t
-                    # current_context:    [1, 1, hidden_size] = context vector c
+                    # current_embeddings: goal vector q
+                    # generate_input:     token idxs => token embedding e(y|P)
+                    # current_context:    context vector c
+
+                    # current_embeddings: [1, 1, hidden_size]
+                    # generate_input:     [1]
+                    # current_context:    [1, 1, hidden_size]
                     left_child, right_child, node_label = generate(node_embedding=current_embeddings,
                                                                    node_label=generate_input,
                                                                    current_context=current_context)
+                    # ** left_child:  当前node的left  child的h_l
+                    # ** right_child: 当前node的right child的h_r
+                    # ** node_label:  当前node的token embedding e(y|P)
                     # left_child  = h_l:    [1, hidden_size]
                     # right_child = h_r:    [1, hidden_size]
                     # node_label  = e(y|P): [1, embedding_size]
 
-                    # 生成新的右孩子节点, r.embedding: [1, hidden_size]
+                    # 生成新的右孩子节点的h_l, r.embedding: [1, hidden_size]
                     current_node_stack[0].append(
                         TreeNode(embedding=right_child))
 
-                    # 生成新的左孩子节点, r.embedding: [1, hidden_size]
+                    # 生成新的左孩子节点的h_r, r.embedding: [1, hidden_size]
                     current_node_stack[0].append(
                         TreeNode(embedding=left_child, left_flag=True))
 
-                    # 更新非叶子节点的Sub Tree embedding = 当前节点的token embedding
+                    # 更新非叶子节点的SubTree embedding = 当前节点的token embedding e(y|P)
                     current_embeddings_stacks[0].append(
                         TreeEmbedding(embedding=node_label[0].unsqueeze(0), terminal=False))  # terminal=False: 非叶子节点
-                    # sub_tree embedding = node_label: [1, embedding_size]
+                    # sub_tree embedding(operator) = node_label: [1, embedding_size]
 
                 # 预测的结果为运算数
                 else:
@@ -1136,26 +1193,34 @@ def evaluate_tree(input_batch, input_length, generate_nums,
                         # 更新叶子节点的Tree embedding
                         # 如果此时为右孩子节点，则通过左孩子节点和右孩子节点的subtree embedding来更新根节点的subtree embedding
 
-                        # op.embedding:          [1, embedding_size] = parent node token embedding = e(y^|P)
-                        # sub_stree.embedding:   [1,    hidden_size] =  left_sub_tree_embedding    = t_l
-                        # current_num.embedding: [1,    hidden_size] = right_sub_tree_embedding    = t_r
+                        # op.embedding:          parent node token embedding = e(y^|P)
+                        # sub_stree.embedding:   left_sub_tree_embedding     = t_l
+                        # current_num.embedding: right_sub_tree_embedding    = t_r
+
+                        # op.embedding:          [1, embedding_size]
+                        # sub_stree.embedding:   [1,    hidden_size]
+                        # current_num.embedding: [1,    hidden_size]
                         current_num = merge(node_embedding=op.embedding,
                                             sub_tree_1=sub_stree.embedding,
                                             sub_tree_2=current_num)
+                        # sub_tree embedding(number) = current_num: [1, embedding_size]
 
                     current_embeddings_stacks[0].append(TreeEmbedding(current_num, True))  # terminal=True: 叶子节点
 
-                # current_left_childs记录所有的sub-tree embeddings, 并且在生成新节点时更新
-                if len(current_embeddings_stacks[0]) > 0 and current_embeddings_stacks[0][-1].terminal:  # 最近一个节点为叶子节点(操作数)
-                    current_left_childs.append(current_embeddings_stacks[0][-1].embedding)
+                # 更新left_childs: left_childs记录所有的subtree embedding，并且在生成新节点时更新
+                if len(current_embeddings_stacks[0]) > 0 and current_embeddings_stacks[0][-1].terminal:
+                    current_left_childs.append(current_embeddings_stacks[0][-1].embedding)  # 此时为叶子节点
                 else:
-                    current_left_childs.append(None)
+                    current_left_childs.append(None)  # 此时为非叶子节点
 
+                # node_stacks:      TreeNode,      记录节点node中的 goal vector q
+                # embedding_stacks: TreeEmbedding, 记录节点node之前的节点的subtree embedding t(list)
+                # left_childs:      left_child:    记录节点node中的subtree embedding t
                 current_beams.append(TreeBeam(score=b.score+float(tv),
                                               node_stack=current_node_stack,
                                               embedding_stack=current_embeddings_stacks,
                                               left_childs=current_left_childs,
-                                              out=current_out))
+                                              out=current_out))  # 当前预测出的token_idx
 
         beams = sorted(current_beams, key=lambda x: x.score, reverse=True)
         beams = beams[:beam_size]
