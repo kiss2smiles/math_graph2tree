@@ -37,7 +37,8 @@ def read_json(path):
     return file
 
 
-batch_size = 64
+# batch_size = 64
+batch_size = 2
 embedding_size = 128
 hidden_size = 512
 n_epochs = 80

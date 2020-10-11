@@ -379,42 +379,45 @@ def compute_result(test_res, test_tar, output_lang, num_list, num_stack):
 #   [0]*512, [0]*512, [0]*512, [0]*512, [0]*512, [1]*512, [1]*512, [1]*512,
 # ]
 def get_all_number_encoder_outputs(encoder_outputs, num_pos, batch_size, num_size, hidden_size):
+    # encoder_outputs: [seq_len, batch_size, hidden_size]
     indices = list()
 
     sen_len = encoder_outputs.size(0)
     masked_index = []
-    temp_1 = [1 for _ in range(hidden_size)]
-    temp_0 = [0 for _ in range(hidden_size)]
+    temp_1 = [1 for _ in range(hidden_size)]  # pad
+    temp_0 = [0 for _ in range(hidden_size)]  # loc
 
     for b in range(batch_size):
         for i in num_pos[b]:
             indices.append(i + b * sen_len)
             masked_index.append(temp_0)
-        indices += [0 for _ in range(len(num_pos[b]), num_size)]
+        indices      += [0      for _ in range(len(num_pos[b]), num_size)]
         masked_index += [temp_1 for _ in range(len(num_pos[b]), num_size)]
 
-    # indices:      batch_size * num_size
-    # masked_index: batch_size * num_size * hidden_size
     indices = torch.LongTensor(indices)
     masked_index = torch.ByteTensor(masked_index)
+    # indices:      [batch_size * num_size]
+    # masked_index: [batch_size * num_size, hidden_size]
+
     masked_index = masked_index.view(batch_size, num_size, hidden_size)
+    # masked_index: [batch_size, num_size, hidden_size]
 
     if USE_CUDA:
-        indices = indices.cuda()
+        indices      = indices.cuda()
         masked_index = masked_index.cuda()
 
-    # encoder_outputs: seq_len * batch_size * hidden_size
-    # all_outputs:     batch_size * seq_len * hidden_size
-    # all_embedding:   (batch_size * seq_len) * hidden_size
+    # encoder_outputs: [seq_len,  batch_size, hidden_size]
     all_outputs   = encoder_outputs.transpose(0, 1).contiguous()
+    # all_outputs:     [batch_size,  seq_len, hidden_size]
+
     all_embedding = all_outputs.view(-1, encoder_outputs.size(2))  # S x B x H -> (B x S) x H
+    # all_embedding:   [batch_size * seq_len, hidden_size]
 
-    # all_embedding: (batch_size * seq_len) * hidden_size
-    # indices:       (batch_size * num_size)
-    # all_num:       (batch_size * num_size) * hidden_size
-    all_num = all_embedding.index_select(0, indices)
+    all_num = all_embedding.index_select(dim=0, index=indices)
+    # all_num: [batch_size * num_size, hidden_size]
 
-    # all_num:        batch_size * num_size  * hidden_size
     all_num = all_num.view(batch_size, num_size, hidden_size)
+    # all_num: [batch_size, num_size, hidden_size]
+
     # 填充的位置的embedding初始化为随机的embedding
     return all_num.masked_fill_(masked_index, 0.0)

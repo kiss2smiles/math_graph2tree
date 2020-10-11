@@ -65,26 +65,23 @@ class TreeEmbedding:  # the class save the tree
         self.terminalc = terminal
 
 
-# input_batch       ** 原始文本中单词在词表中的索引
-# input_length      ** 原始文本中单词序列的长度
-# target_batch      ** 输出公式中的单词在词表中的索引
-# target_length     ** 输出公式中单词序列的长度
+# input_batch(list)       ** 原始文本中单词在词表中的索引
+# input_length(list)      ** 原始文本中单词序列的长度
+# target_batch(list)      ** 输出公式中的单词在词表中的索引
+# target_length(list)     ** 输出公式中单词序列的长度
 
-# num_stack_batch   ** 原始文本中的重复单词在number_values list中的索引
-# num_size_batch    ** 原始文本中的数字个数
-# generate_nums     ** 原始数据集中所包含的常数(1, 3.14)
+# nums_stack_batch(list)  ** 原始文本中的重复单词在number_values list中的索引
+# num_size_batch(list)    ** 原始文本中的数字个数
+# generate_nums(list)     ** 原始数据集中所包含的常数(1, 3.14)
 
-# num_pos_batch     ** 原始文本中的数字在原始文本中的位置
-# batch_graph       ** 建立好的Quantity Cell Graph 和 Quantity Comparison Graph
+# num_pos(list)           ** 原始文本中的数字在原始文本中的位置
+# batch_graph(numpy)      ** 建立好的Quantity Cell Graph 和 Quantity Comparison Graph
 def train_tree(input_batch,       input_length,      target_batch,       target_length,
                nums_stack_batch,  num_size_batch,    generate_nums,
                encoder,           predict,           generate,           merge,
                encoder_optimizer, predict_optimizer, generate_optimizer, merge_optimizer,
                output_lang,       num_pos,           batch_graph,        english=False):
 
-    print("type(input_batch) = ", type(input_batch))
-    print("type(input_length) = ", type(input_length))
-    exit(0)
     # sequence mask for attention
     seq_mask = []
     max_len = max(input_length)  # seq_len = max_len
@@ -146,7 +143,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     # 1. encoder
     # 在RNN Encoder之后接上一个batch_graph，即将图的信息融入网络中
     # input_var(Tensor):    [seq_len, batch_size]
-    # input_length(): [batch_size]
+    # input_length(list):   [batch_size]
     # batch_graph(Tensor):  [batch_size, 5, seq_len, seq_len]
     encoder_outputs, problem_output = encoder(input_seqs=input_var,
                                               input_lengths=input_length,
@@ -190,7 +187,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     #      循环完成merge操作, 得到右孩子节点的最终subtree embedding t_r，并设置terminal=True
     embeddings_stacks = [[] for _ in range(batch_size)]
 
-    # left_childs: 记录节点node中的subtree embedding t
+    # left_childs: 记录节点node中当前节点的subtree embedding t
     #   如果为操作符(非叶子节点),此时left_childs输出为None
     #   如果为操作数(左孩子节点),此时left_childs输出为左孩子节点的subtree embedding t_l
     #   如果为操作数(右孩子节点),此时left_childs输出为右孩子节点的subtree embedding t_r
