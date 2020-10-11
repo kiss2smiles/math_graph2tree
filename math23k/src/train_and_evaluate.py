@@ -234,9 +234,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         left_child, right_child, node_label = generate(node_embedding=current_embeddings,
                                                        node_label=generate_input,
                                                        current_context=current_context)
-        # ** left_child:  当前node的left  child的h_l
-        # ** right_child: 当前node的right child的h_r
-        # ** node_label:  当前node的token embedding e(y|P)
         # left_child:  h_l    = [batch_size,    hidden_size]
         # right_child: h_r    = [batch_size,    hidden_size]
         # node_label:  e(y|P) = [batch_size, embedding_size]

@@ -194,11 +194,16 @@ def generate_post_tree_seq_rule_mask(decoder_input, nums_batch, word2index, batc
 
 
 def generate_tree_input(target, decoder_output, nums_stack_batch, num_start, unk):
-    # when the decoder input is copied num but the num has two pos, chose the max
+    # when the decoder input is copied num but the num has two pos, chose the max score (-> embedding)
+    # 处理有重复数字的情况
+
     # target:         [batch_size]
     # decoder_output: [batch_size, num_size + constant_size + operator_size]
 
-    # 判断当前target是运算符还是运算数，如果为运算符，则重复step2，否则，跳转执行step3
+    print("num_start = ", num_start)
+    print("unk = ", unk)
+
+    # 如果存在重复的数，则取概率最大的重复数位置的pos作为target的输出
     target_input = copy.deepcopy(target)
     for i in range(len(target)):
         if target[i] == unk:
@@ -210,7 +215,7 @@ def generate_tree_input(target, decoder_output, nums_stack_batch, num_start, unk
                     max_score = decoder_output[i, num_start + num]
 
         if target_input[i] >= num_start:
-            target_input[i] = 0
+            target_input[i] = 0  # 当输入为数字时，转为*
     return torch.LongTensor(target), torch.LongTensor(target_input)
 
 

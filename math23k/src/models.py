@@ -332,6 +332,7 @@ class GenerateNode(nn.Module):
         # node_label:      [batch_size]
         # current_context: [batch_size, 1, hidden_size]
 
+        # 得到当前operator的token embedding 
         node_label_ = self.embeddings(node_label)
         # node_label_: [batch_size, embedding_size]
 
