@@ -218,9 +218,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                                                        nums_stack_batch=nums_stack_batch,
                                                        num_start=num_start,
                                                        unk=unk)
-        # target_t:       target token index = The token with the highest probability
-        # generate_input: target token index = The token with the highest probability
-        # target_t:       [batch_size] = ground_truth
+        # target_t:       [batch_size]
         # generate_input: [batch_size]
 
         target[t] = target_t
@@ -231,6 +229,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         # current_embeddings: [batch_size, 1, hidden_size]
         # generate_input:     [batch_size]
         # current_context:    [batch_size, 1, hidden_size]
+        # 只适用于预测操作符时，将goal vector分解
         left_child, right_child, node_label = generate(node_embedding=current_embeddings,
                                                        node_label=generate_input,
                                                        current_context=current_context)
@@ -280,8 +279,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                     op        = o.pop()  # op.terminal        = False (父节点(为操作数))
 
                     # 更新叶子节点的Tree embedding
-                    #   如果此时为右孩子节点，则通过左孩子节点的 subtree embedding t_l 和 右孩子节点的subtree embedding t_r
-                    #   来更新根节点的subtree embedding t
                     # op.embedding:        [1, embedding_size] = parent node token embedding = e(y^|P)
                     # sub_stree.embedding: [1,    hidden_size] = left_sub_tree_embedding     = t_l
                     # current_num:         [1,    hidden_size] = right_sub_tree_embedding    = t_r
