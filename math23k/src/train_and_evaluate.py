@@ -275,13 +275,13 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
                 # 通过左孩子节点和父节点的sub-tree embedding来更新右孩子节点的sub-tree embedding
                 while len(o) > 0 and o[-1].terminal:
-                    sub_stree = o.pop()  # sub_stree.terminal = True  (左孩子节点)
-                    op        = o.pop()  # op.terminal        = False (父节点(为操作数))
+                    sub_stree = o.pop()  # 左孩子节点
+                    op        = o.pop()  # 父节点
 
                     # 更新叶子节点的Tree embedding
-                    # op.embedding:        [1, embedding_size] = parent node token embedding = e(y^|P)
-                    # sub_stree.embedding: [1,    hidden_size] = left_sub_tree_embedding     = t_l
-                    # current_num:         [1,    hidden_size] = right_sub_tree_embedding    = t_r
+                    # op.embedding:        [1, embedding_size]
+                    # sub_stree.embedding: [1,    hidden_size]
+                    # current_num:         [1,    hidden_size]
 
                     current_num = merge(node_embedding=op.embedding,
                                         sub_tree_1=sub_stree.embedding,
