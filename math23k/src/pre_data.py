@@ -248,7 +248,8 @@ def load_roth_data(filename):  # load the json data to dict(dict()) for roth dat
 
 def transfer_num(data):  # transfer num into "NUM"
     print("Transfer numbers...")
-    pattern = re.compile("\d*\(\d+/\d+\)\d*|\d+\.\d+%?|\d+%?")
+    pattern = re.compile("\d*\(\d+/\d+\)\d*|\d+\.\d+%?|\d+%?")  # 匹配文本中的所有数字
+
     pairs = []
     generate_nums = []
     generate_nums_dict = {}
@@ -256,19 +257,9 @@ def transfer_num(data):  # transfer num into "NUM"
     for d in data:
         nums = []
         input_seq = []
-        # d["segmented_text"] =  镇海 雅乐 学校 二年级 的 小朋友 到 一条 小路 的 一边 植树 ． 小朋友 们 每隔 2 米 种 一棵树 （ 马路 两头 都 种 了 树 ） ， 最后 发现 一共 种 了 11 棵 ， 这 条 小路 长 多少 米 ．
-        # seg =  ['镇海', '雅乐', '学校', '二年级', '的', '小朋友', '到', '一条', '小路', '的', '一边', '植树', '．', '小朋友', '们', '每隔', '2', '米', '种', '一棵树', '（', '马路', '两头', '都', '种', '了', '树', '）', '，', '最后', '发现', '一共', '种', '了', '11', '棵', '，', '这', '条', '小路', '长', '多少', '米', '．']
-        # d["equation"] =  x=(11-1)*2
-        # equations =  (11-1)*2
-        # nums =  ['2', '11']
-        # input_seq =  ['镇海', '雅乐', '学校', '二年级', '的', '小朋友', '到', '一条', '小路', '的', '一边', '植树', '．', '小朋友', '们', '每隔', 'NUM', '米', '种', '一棵树', '（', '马路', '两头', '都', '种', '了', '树', '）', '，', '最后', '发现', '一共', '种', '了', 'NUM', '棵', '，', '这', '条', '小路', '长', '多少', '米', '．']
-        # nums_fraction =  ['(1/6)', '(1/4)']  文本中出现的分数
-        # out_seq =  ['(', 'N1', '-', '1', ')', '*', 'N0']  记录公式中的常数项
-        # generate_nums =  ['1']
-        # generate_nums_dict =  {'1': 1}
-        # num_pos =  [16, 34]  # 数字在文本中的位置
-        seg = d["segmented_text"].strip().split(" ")
-        equations = d["equation"][2:]  # remove x=
+
+        seg       = d["segmented_text"].strip().split(" ")
+        equations = d["equation"][2:]  # remove "x="
 
         for s in seg:
             pos = re.search(pattern, s)
@@ -294,7 +285,7 @@ def transfer_num(data):  # transfer num into "NUM"
             for n in nums_fraction:
                 if n in st:
                     p_start = st.find(n)
-                    p_end = p_start + len(n)
+                    p_end   = p_start + len(n)
                     if p_start > 0:
                         res += seg_and_tag(st[:p_start])
                     if nums.count(n) == 1:
@@ -304,6 +295,7 @@ def transfer_num(data):  # transfer num into "NUM"
                     if p_end < len(st):
                         res += seg_and_tag(st[p_end:])
                     return res
+
             pos_st = re.search("\d+\.\d+%?|\d+%?", st)
             if pos_st:
                 p_start = pos_st.start()
@@ -341,6 +333,7 @@ def transfer_num(data):  # transfer num into "NUM"
     for g in generate_nums:
         if generate_nums_dict[g] >= 5:
             temp_g.append(g)
+
     return pairs, temp_g, copy_nums
 
 
@@ -560,6 +553,44 @@ def indexes_from_sentence(lang, sentence, tree=False):
     return res
 
 
+# # 其中所有数字都被替换为NUM标识
+# pair[0] = input_seq  = 分词后的单词序列
+# pair[1] = output_seq = 分词后的公式的前序表达式(ground_truth)
+# pair[2] = numbers    = 文本中提到的所有数字序列
+# pair[3] = num_pos    = 数字在文本中的所有位置
+# pair[4] = group_num  = 与数字相关的所有单词信息
+# num_stack: 文本中的重复数字在pair[2]中的位置 || 文本中无法识别的数字
+
+# pair[1] =    ['/', '*', 'N1', 'N2', '5']
+# output_cell: [3, 0, 8, 9, 22]
+# pair[2] =    ['5', '16.5', '2.1', '5']
+# num_stack:   [[0, 3]]
+# 表示文本中的重复数字在公式中出现了一次
+
+# pair[1] =    ['/', '-', 'N2', '4', '4']
+# output_cell:
+# pair[2] =    ['4', '1', '36', '4']
+# num_stack:   [[0, 3], [0, 3]]
+# 表示文本中的重复数字在公式中出现了两次
+
+# pair[0] =  ['小',   '芳',  '家', 'NUM', '月份', '用水量', '是', 'NUM', '吨',   '，',
+#             '每吨', '水',   '的', '价格', '是',   'NUM',   '元', '，',  '小',   '芳',
+#             '家',   '一共', '有', 'NUM', '口',   '人',    '，', '平均', '每人', '应交',
+#             '多少', '水费', '？']
+# input_cell = [68,  178, 179, 1,   86,  2,  71,  1,   180, 26,
+#               181, 182, 6,   183, 71,  1,  184, 26,  68,  178,
+#               179, 29,  118, 1,   185, 85, 26,  186, 187, 188,
+#               34,  189, 52]
+# len(input_cell) = 33
+# pair[1] =  ['/', '*', 'N1', 'N2', '5'] => ['/', '*', 'N1', 'N2', 'UNK']
+# output_cell = [3, 0, 8, 9, 22]
+# len(output_cell) = 5
+# pair[2] =  ['5', '16.5', '2.1', '5']
+# pair[3] =  [3, 7, 15, 23]
+# pair[4] =  [3, 4, 5, 4, 5, 7, 17, 18, 19, 22, 23, 24, 25]
+# num_stack: [[0, 3]]
+# 当出现重复数字时，将output_seq中相应的数字位置设置为UNK
+
 def prepare_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, copy_nums, tree=False):
     input_lang = Lang()
     output_lang = Lang()
@@ -574,32 +605,21 @@ def prepare_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, cop
         elif pair[-1]:
             input_lang.add_sen_to_vocab(pair[0])
             output_lang.add_sen_to_vocab(pair[1])
+
     input_lang.build_input_lang(trim_min_count)
     if tree:
         output_lang.build_output_lang_for_tree(generate_nums, copy_nums)
     else:
         output_lang.build_output_lang(generate_nums, copy_nums)
 
-    # # 其中所有数字都被替换为NUM标识
-    # pair[0] = 分词后的单词序列
-    # eg: ['在', '一', '正方形', '花池', '的', 'NUM', '周', '栽', '了', 'NUM', '棵', '柳树', '，', '每', '两棵', '柳树', '之间',
-    #      '的', '间隔', '是', 'NUM', '米', '，', '这个', '正方形', '的', '周长', '=', '多少', '米', '？']
-    # pair[1] = 分词后的公式的前序表达式(ground_truth)
-    # eg: ['*', 'N1', 'N2']
-    # pair[2] = 文本中提到的所有数字序列
-    # eg: ['4', '44', '20']
-    # pair[3] = 数字在文本中的所有位置
-    # eg: [5, 9, 20]
-    # pair[4] = group_num
-    # eg: [12, 13, 14, 24, 25, 26, 27]
     for pair in pairs_trained:
         num_stack = []
-        for word in pair[1]:
+        for word in pair[1]:  # output_seq
             temp_num = []
             flag_not = True
-            if word not in output_lang.index2word:
+            if word not in output_lang.index2word:  # output_vocab
                 flag_not = False
-                for i, j in enumerate(pair[2]):
+                for i, j in enumerate(pair[2]):  # numbers
                     if j == word:
                         temp_num.append(i)
 
@@ -611,10 +631,18 @@ def prepare_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, cop
         num_stack.reverse()
         input_cell  = indexes_from_sentence(input_lang,  pair[0])
         output_cell = indexes_from_sentence(output_lang, pair[1], tree)
-        train_pairs.append(
-            (input_cell, len(input_cell), output_cell, len(output_cell), pair[2], pair[3], num_stack, pair[4]))
+        train_pairs.append((input_cell,
+                            len(input_cell),
+                            output_cell,
+                            len(output_cell),
+                            pair[2],
+                            pair[3],
+                            num_stack,
+                            pair[4]))
+
     print('Indexed %d words in input language, %d words in output' % (input_lang.n_words, output_lang.n_words))
     print('Number of training data %d' % (len(train_pairs)))
+
     for pair in pairs_tested:
         num_stack = []
         for word in pair[1]:
@@ -634,10 +662,19 @@ def prepare_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, cop
         num_stack.reverse()
         input_cell = indexes_from_sentence(input_lang, pair[0])
         output_cell = indexes_from_sentence(output_lang, pair[1], tree)
-        test_pairs.append((input_cell, len(input_cell), output_cell, len(output_cell),
-                           pair[2], pair[3], num_stack,pair[4]))
+        test_pairs.append((input_cell,
+                           len(input_cell),
+                           output_cell,
+                           len(output_cell),
+                           pair[2],
+                           pair[3],
+                           num_stack,
+                           pair[4]))
     print('Number of testind data %d' % (len(test_pairs)))
+
     return input_lang, output_lang, train_pairs, test_pairs
+# pair: (input_seq(index), len(input_seq), output_seq(index), len(output_seq),
+#        number_values, num_pos, num_stack, group_num)
 
 
 def prepare_de_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, copy_nums, tree=False):
@@ -676,8 +713,22 @@ def prepare_de_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, 
 
         num_stack.reverse()
         input_cell = indexes_from_sentence(input_lang, pair[0])
-        # train_pairs.append([input_cell, len(input_cell), pair[1], 0, pair[2], pair[3], num_stack, pair[4]])
-        train_pairs.append([input_cell, len(input_cell), pair[1], 0, pair[2], pair[3], num_stack])
+        # train_pairs.append([input_cell,
+        #                     len(input_cell),
+        #                     pair[1],
+        #                     0,
+        #                     pair[2],
+        #                     pair[3],
+        #                     num_stack,
+        #                     pair[4]])
+        train_pairs.append([input_cell,
+                            len(input_cell),
+                            pair[1],
+                            0,
+                            pair[2],
+                            pair[3],
+                            num_stack])
+
     print('Indexed %d words in input language, %d words in output' % (input_lang.n_words, output_lang.n_words))
     print('Number of training data %d' % (len(train_pairs)))
     for pair in pairs_tested:
@@ -699,10 +750,22 @@ def prepare_de_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, 
         num_stack.reverse()
         input_cell = indexes_from_sentence(input_lang, pair[0])
         output_cell = indexes_from_sentence(output_lang, pair[1], tree)
-        # train_pairs.append((input_cell, len(input_cell), output_cell, len(output_cell),
-        #                     pair[2], pair[3], num_stack, pair[4]))
-        test_pairs.append((input_cell, len(input_cell), output_cell, len(output_cell),
-                           pair[2], pair[3], num_stack))
+        # train_pairs.append((input_cell,
+        #                     len(input_cell),
+        #                     output_cell,
+        #                     len(output_cell),
+        #                     pair[2],
+        #                     pair[3],
+        #                     num_stack,
+        #                     pair[4]))
+
+        test_pairs.append((input_cell,
+                           len(input_cell),
+                           output_cell,
+                           len(output_cell),
+                           pair[2],
+                           pair[3],
+                           num_stack))
     print('Number of testind data %d' % (len(test_pairs)))
     return input_lang, output_lang, train_pairs, test_pairs
 
@@ -850,7 +913,7 @@ def get_single_batch_graph(input_batch, input_length, group, num_value, num_pos)
         # num_list           =  ['80', '120', '200', '40%']
 
         # ** 原始文本中的数字在文本中的位置  num_list
-        # id_num_list        =  [15, 23, 33, 44]
+        # num_pos        =  [15, 23, 33, 44]
 
         input_batch_t      = input_batch[i]
         sentence_length    = input_length[i]
@@ -939,13 +1002,14 @@ def prepare_train_batch(pairs_to_batch, batch_size):
         pos += batch_size
     batches.append(pairs[pos:])
 
+    # pair: (input_seq(index), len(input_seq), output_seq(index), len(output_seq), numbers, num_pos, num_stack, group_num)
     for batch in batches:
         batch = sorted(batch, key=lambda tp: tp[1], reverse=True)
         input_length = []
         output_length = []
         for _, i, _, j, _, _, _, _ in batch:
-            input_length.append(i)
-            output_length.append(j)
+            input_length.append(i)   # len(input_seq)
+            output_length.append(j)  # len(output_seq)
 
         input_lengths.append(input_length)
         output_lengths.append(output_length)
@@ -960,76 +1024,25 @@ def prepare_train_batch(pairs_to_batch, batch_size):
         group_batch = []
         num_value_batch = []
 
-        # ** input sequence tokens index
-        # i =  [2,    658,  2524, 507,  813, 405, 1,   66,   2,    2525,
-        #       26,   58,   66,   2389, 1,   184, 26,  2,    207,  2,
-        #       425,  730,  26,   58,   66,  6,   512, 246,  2389, 6,
-        #       1,    26,   905,  513,  26,  58,  66,  518,  512,  26,
-        #       846,  2,    2,    1,    184, 26,  507, 2526, 207,  324,
-        #       2110, 2527, 813,  2,    654, 103, 26,  520,  1,    184,
-        #       512,  26,   468,  207,  507, 521, 425, 26,   2528, 23,
-        #       2048, 2525, 52]
-
-        # ** input sequence tokens len
-        # li =  73
-
-        # ** output sequence tokens index
-        # j =  [3, 1, 0, 0, 7, 8, 9, 11, 2, 0,
-        #       8, 9, 10]
-
-        # ** output sequence tokens len
-        # lj =  13
-
-        # ** numbers in input sentence text
-        # num =  ['10000', '7.5', '4%', '8.2', '2966']
-
-        # ** tokens index in input sentence text
-        # num_pos =  [6, 14, 30, 43, 58]
-
-        # num_stack =  []
-
-        # ** correrated attributes and original numbers node in input sentence text
-        # group =  [5,  6,  7,  13, 14, 15, 29, 30, 31, 43,
-        #           44, 45, 57, 58, 59, 69, 70, 71]
+        # pair:  i         = input_seq(index),  => input_batches     ** 原始文本中单词在词表中的索引
+        #        li        = len(input_seq),    => input_length      ** 原始文本中单词序列的长度
+        #                  = len(number_values) => nums_batches      ** 原始文本中的数字个数
+        #        j         = output_seq(index), => output_batches    ** 输出公式中的单词在词表中的索引
+        #        lj        = len(output_seq),   => output_length     ** 输出公式中单词序列的长度
+        #        num_stack = num_stack,         => num_stack_batches ** 原始文本中的重复单词在number_values list中的索引
+        #        num_pos   = num_pos,           => num_pos_batches   ** 原始文本中的数字在原始文本中的位置
+        #                  len(number_values)   => num_size_batches  ** 原始文本中的数字个数
+        #        num       = number_values,     => num_value_batches ** 原始文本中的所有数字
+        #        group     = group_num)         => group_batches     ** 原始文本中的所有group_num
         for i, li, j, lj, num, num_pos, num_stack, group in batch:
             num_batch.append(len(num))
-            input_batch.append(pad_seq(i, li, input_len_max))
+            input_batch.append( pad_seq(i, li, input_len_max))
             output_batch.append(pad_seq(j, lj, output_len_max))
             num_stack_batch.append(num_stack)
             num_pos_batch.append(num_pos)
             num_size_batch.append(len(num_pos))
             num_value_batch.append(num)
             group_batch.append(group)
-
-        # ** 原始文本中单词在词表中的索引
-        # input_batch =  [329, 777, 239, 1,    72,  26,   507,  434, 2369, 23,
-        #                 681, 26,  137, 2369, 6,   239,  2201, 103, 26,   2370,
-        #                 246, 1,   26,  2369, 6,   239,  2371, 625, 504,  26,
-        #                 2,   1,   26,  27,   2,   112,  28,   254, 6,    1432,
-        #                 246, 1,   26,  801,  325, 2369, 34,   72,  239,  13]
-
-        # ** 输出公式中的数字个数
-        # num_batch =  4
-
-        # ** 输出公式中的单词在词表中的索引
-        # output_batch =  [3, 0, 7, 1, 8, 10, 2, 8, 9, 0,
-        #                  0, 0, 0, 0, 0, 0, 0]
-
-        # ** num_stack
-        # num_stack_batch =  []
-
-        # ** 输出公式中的数字在原始文本中的位置
-        # num_pos_batch =  [3, 21, 31, 41]
-
-        # ** 输出公式中的数字个数
-        # num_size_batch =  4
-
-        # ** 原始文本中的所有数字
-        # num_value_batch =  ['1000', '40%', '60%', '32%']
-
-        # ** 原始文本中的所有group_num
-        # group_batch =  [2,  3,  4,  20, 21, 22, 31, 32, 33, 42,
-        #                 43, 44, 49, 50, 51, 52]
 
         input_batches.append(input_batch)
         nums_batches.append(num_batch)

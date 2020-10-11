@@ -50,18 +50,6 @@ def get_train_test_fold(ori_path, prefix, data, pairs, group):
     test_fold  = []
 
     for item, pair, g in zip(data, pairs, group):
-        # # 其中所有数字都被替换为NUM标识
-        # pair[0] = 分词后的单词序列
-        # eg: ['在', '一', '正方形', '花池', '的', 'NUM', '周', '栽', '了', 'NUM', '棵', '柳树', '，', '每', '两棵', '柳树', '之间',
-        #      '的', '间隔', '是', 'NUM', '米', '，', '这个', '正方形', '的', '周长', '=', '多少', '米', '？']
-        # pair[1] = 分词后的公式的前序表达式(ground_truth)
-        # eg: ['*', 'N1', 'N2']
-        # pair[2] = 文本中提到的所有数字序列
-        # eg: ['4', '44', '20']
-        # pair[3] = 数字在文本中的所有位置
-        # eg: [5, 9, 20]
-        # pair[4] = group_num
-        # eg: [12, 13, 14, 24, 25, 26, 27]
         pair = list(pair)
         pair.append(g['group_num'])
         pair = tuple(pair)
@@ -71,6 +59,7 @@ def get_train_test_fold(ori_path, prefix, data, pairs, group):
             test_fold.append(pair)
         else:
             valid_fold.append(pair)
+    # pair: (input_seq, output_seq(prefix), numbers, num_pos, group_num)
     return train_fold, test_fold, valid_fold
 
 
@@ -95,20 +84,10 @@ def change_num(num):
 data       = load_raw_data("data/Math_23K.json")
 group_data = read_json("data/Math_23K_processed.json")
 # generate_nums: ['1', '3.14'] // 数据集中的常数
+# copy_nums: 文本中最多出现的数字个数
 pairs, generate_nums, copy_nums = transfer_num(data)
 
 temp_pairs = []
-# p: input_seq, out_seq, nums, num_pos
-# p[0] =  [
-#   '镇海', '雅乐', '学校', '二年级', '的', '小朋友', '到', '一条', '小路', '的',
-#   '一边', '植树', '．', '小朋友', '们', '每隔', 'NUM', '米', '种', '一棵树',
-#   '（', '马路', '两头', '都', '种', '了', '树', '）', '，', '最后',
-#   '发现', '一共', '种', '了', 'NUM', '棵', '，', '这', '条', '小路',
-#   '长', '多少', '米', '．'
-# ]
-# p[1] =  ['(', 'N1', '-', '1', ')', '*', 'N0']
-# p[2] =  ['2', '11']
-# p[3] =  [16, 34]
 for p in pairs:
     temp_pairs.append((p[0], from_infix_to_prefix(p[1]), p[2], p[3]))
 pairs = temp_pairs
@@ -124,6 +103,7 @@ pairs_tested = test_fold
 # pairs_trained = valid_fold
 pairs_trained = train_fold
 
+# pair: (input_seq(index), len(input_seq), output_seq(index), len(output_seq), numbers, num_pos, num_stack, group_num)
 input_lang, output_lang, train_pairs, test_pairs = prepare_data(pairs_trained=pairs_trained,
                                                                 pairs_tested=pairs_tested,
                                                                 trim_min_count=5,
@@ -148,13 +128,17 @@ with open("data/output_vocab.json", "w", encoding="utf-8") as writer:
 # }
 
 # output_lang.n_words: 23
-# copy_nums: 15
-# len(generate_nums): 2
-# op_nums: = 23 - 15 - 1 - 2 = 5
+# copy_nums:           15 (N0-N14)
+# len(generate_nums):  2
+# op_nums:             5
+# embedding_size:      128
+# hidden_size:         512
+
 # Initialize models
+op_nums = output_lang.n_words - copy_nums - 1 - len(generate_nums)
 encoder  = EncoderSeq(  input_size=input_lang.n_words, embedding_size=embedding_size, hidden_size=hidden_size, n_layers=n_layers)
-predict  = Prediction(  hidden_size=hidden_size, op_nums=output_lang.n_words - copy_nums - 1 - len(generate_nums), input_size=len(generate_nums))
-generate = GenerateNode(hidden_size=hidden_size, op_nums=output_lang.n_words - copy_nums - 1 - len(generate_nums), embedding_size=embedding_size)
+predict  = Prediction(  hidden_size=hidden_size, op_nums=op_nums, input_size=len(generate_nums))
+generate = GenerateNode(hidden_size=hidden_size, op_nums=op_nums, embedding_size=embedding_size)
 merge    = Merge(       hidden_size=hidden_size, embedding_size=embedding_size)
 # the embedding layer is  only for generated number embeddings, operators, and paddings
 
@@ -192,68 +176,34 @@ for epoch in range(n_epochs):
     print("epoch:", epoch + 1)
     start = time.time()
 
-    # ** 原始文本的单词在词典中的索引
-    #   input_batches[idx] =  [1513, 324, 1000, 1000, 488,  118,  681, 965, 26,  129,
-    #                          1513, 6,   965,  126,  253,  564,  85,  676, 6,   1,
-    #                          26,   398, 1513, 2247, 1000, 1000, 1,   229, 103, 26,
-    #                          1513, 324, 1000, 1000, 965,  229,  126, 6,   91,  71,
-    #                          1,    325, 1,    13,   564,  85,   177, 965, 34,  229,
-    #                          52]
-
-    # ** 原始文本的单词序列的长度
-    #   input_lengths[idx] =  51
-
-    # ** 输出公式的单词在词典中的索引
-    #   output_batches[idx] =  [3, 8, 1, 7, 3, 9, 2, 9, 10]
-
-    # ** 输出公式的单词序列的长度
-    #   output_lengths[idx] =  9
-
-    # ** 文本中不重复的数字个数 = len(num)
-    #   num_batches[idx][0] = 4
-
-    # ** num_stack
-    #   num_stack_batches[idx] =  []
-
-    # ** 文本中的数字在原始文本中的位置
-    #   num_pos_batches[idx][0] =  [19, 26, 40, 42]
-
-    # ** 文本中的数字个数 = len(num_pos)
-    #   num_size_batches[idx][0] =  4
-
-    # ** 文本中的数字的值
-    #   num_value_batches[idx][0] = ['60%', '20', '2', '3']
-
-    # ** 常数在output_vocab中的索引位置
-    #   generate_num_ids = [5, 6]
-
     for idx in range(len(input_lengths)):
         opr_input = ['+', '-', '*', '/', '^']
         num_value_batch = num_value_batches[idx]
         batch_size      = len(num_value_batch)
 
-        # total_len: max_num_size
-        total_len = len(generate_nums) + max([len(num_value_batch[idx1]) for idx1 in range(batch_size)])
-
-        # current_opr_embedding2: [batch_size, operator_size, 1, 1024]
-        # current_num_embedding2: [batch_size, number_size + constant_size, 10, 1024]
-        current_opr_embedding2 = torch.zeros(batch_size, 5,         1,  1024)
-        current_num_embedding2 = torch.zeros(batch_size, total_len, 10, 1024)
-
-        # 利用bert embedding 初始化number embedding
-        for idx1 in range(batch_size):
-            # numbers: ['1', '3.14', '4', '1', '10', '7', '8']
-            for idx2, item in enumerate(generate_nums + num_value_batch[idx1]):
-                embedding = get_embedding(item, max_seq_len=10)
-                item_len  = embedding.size(0)
-                current_num_embedding2[idx1, idx2, :item_len] = embedding
-
-        # 利用bert embedding 初始化operator embedding
-        for idx1 in range(batch_size):
-            # opr_input: ['+', '-', '*', '/', '^']
-            for idx2, item in enumerate(opr_input):
-                embedding = get_embedding(item)
-                current_opr_embedding2[idx1, idx2] = embedding
+        # # debug for bert embedding
+        # # total_len: max_num_size
+        # total_len = len(generate_nums) + max([len(num_value_batch[idx1]) for idx1 in range(batch_size)])
+        #
+        # # current_opr_embedding2: [batch_size, operator_size, 1, 1024]
+        # # current_num_embedding2: [batch_size, number_size + constant_size, 10, 1024]
+        # current_opr_embedding2 = torch.zeros(batch_size, 5,         1,  1024)
+        # current_num_embedding2 = torch.zeros(batch_size, total_len, 10, 1024)
+        #
+        # # 利用bert embedding 初始化number embedding
+        # for idx1 in range(batch_size):
+        #     # numbers: ['1', '3.14', '4', '1', '10', '7', '8']
+        #     for idx2, item in enumerate(generate_nums + num_value_batch[idx1]):
+        #         embedding = get_embedding(item, max_seq_len=10)
+        #         item_len  = embedding.size(0)
+        #         current_num_embedding2[idx1, idx2, :item_len] = embedding
+        #
+        # # 利用bert embedding 初始化operator embedding
+        # for idx1 in range(batch_size):
+        #     # opr_input: ['+', '-', '*', '/', '^']
+        #     for idx2, item in enumerate(opr_input):
+        #         embedding = get_embedding(item)
+        #         current_opr_embedding2[idx1, idx2] = embedding
 
         loss = train_tree(
             input_batch=input_batches[idx],
@@ -280,22 +230,6 @@ for epoch in range(n_epochs):
     print("training time", time_since(time.time() - start))
     print("--------------------------------")
 
-    # batch[0]: 单词在词表中的索引位置
-    #   eg: [207, 35, 796, 2, 6, 1, 197, 481, 23, 1, 30, 484, 26, 58, 3269, 484, 1088, 6, 1903, 71, 1, 16, 26, 49, 796, 6, 439, 75, 34, 16, 52]
-    # batch[1]: 索引序列的长度
-    #   eg: 31
-    # batch[2]: 数学表达式的先序遍历
-    #   eg: [0, 8, 9]
-    # batch[3]: 表达式序列的长度
-    #   eg: 3
-    # batch[4]: 文本中提到的所有数字序列
-    #   eg: ['4', '44', '20']
-    # batch[5]: 数字在文本中的所有位置
-    #   eg: [5, 9, 20]
-    # batch[6]: num_stack
-    #   eg: []
-    # batch[7]: group_num
-    #   eg: [12, 13, 14, 24, 25, 26, 27]
     if epoch % 2 == 0 or epoch > n_epochs - 5:
         value_ac    = 0
         equation_ac = 0
