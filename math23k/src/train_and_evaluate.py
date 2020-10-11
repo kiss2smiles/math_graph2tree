@@ -51,18 +51,18 @@ class TreeNode:  # the class save the tree node
 
 class TreeBeam:  # the class save the beam node
     def __init__(self, score, node_stack, embedding_stack, left_childs, out):
-        self.score = score
+        self.score           = score
         self.embedding_stack = copy_list(embedding_stack)
-        self.node_stack = copy_list(node_stack)
-        self.left_childs = copy_list(left_childs)
-        self.out = copy.deepcopy(out)
+        self.node_stack      = copy_list(node_stack)
+        self.left_childs     = copy_list(left_childs)
+        self.out             = copy.deepcopy(out)
 
 
 class TreeEmbedding:  # the class save the tree
     def __init__(self, embedding, terminal=False):
         # embedding: batch_size * hidden_size
         self.embedding = embedding
-        self.terminal = terminal
+        self.terminalc = terminal
 
 
 # input_batch       ** 原始文本中单词在词表中的索引
@@ -82,6 +82,9 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                encoder_optimizer, predict_optimizer, generate_optimizer, merge_optimizer,
                output_lang,       num_pos,           batch_graph,        english=False):
 
+    print("type(input_batch) = ", type(input_batch))
+    print("type(input_length) = ", type(input_length))
+    exit(0)
     # sequence mask for attention
     seq_mask = []
     max_len = max(input_length)  # seq_len = max_len
@@ -142,9 +145,9 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
     # 1. encoder
     # 在RNN Encoder之后接上一个batch_graph，即将图的信息融入网络中
-    # input_var:    [seq_len, batch_size]
-    # input_length: [batch_size]
-    # batch_graph:  [batch_size, 5, seq_len, seq_len]
+    # input_var(Tensor):    [seq_len, batch_size]
+    # input_length(): [batch_size]
+    # batch_graph(Tensor):  [batch_size, 5, seq_len, seq_len]
     encoder_outputs, problem_output = encoder(input_seqs=input_var,
                                               input_lengths=input_length,
                                               batch_graph=batch_graph)

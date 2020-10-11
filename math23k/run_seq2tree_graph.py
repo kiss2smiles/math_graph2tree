@@ -1,6 +1,9 @@
 # coding: utf-8
 import os
 import sys
+import json
+import time
+import torch
 
 cur_path = os.path.abspath(__file__)
 cur_dir = os.path.dirname(cur_path)
@@ -8,10 +11,24 @@ par_dir = os.path.dirname(cur_dir)
 sys.path.append(cur_dir)
 sys.path.append(par_dir)
 
-from math23k.src.train_and_evaluate import *
-from math23k.src.models import *
-from math23k.src.expressions_transfer import *
-from math23k.src.bert_embedding import *
+from math23k.src.expressions_transfer import from_infix_to_prefix
+from math23k.src.models import EncoderSeq
+from math23k.src.models import Prediction
+from math23k.src.models import GenerateNode
+from math23k.src.models import Merge
+from math23k.src.model_utils import compute_prefix_tree_result
+from math23k.src.pre_data import load_raw_data
+from math23k.src.pre_data import transfer_num
+from math23k.src.pre_data import prepare_data
+from math23k.src.pre_data import prepare_train_batch
+from math23k.src.pre_data import get_single_example_graph
+from math23k.src.train_and_evaluate import train_tree
+from math23k.src.train_and_evaluate import evaluate_tree
+from math23k.src.train_and_evaluate import time_since
+
+MAX_OUTPUT_LENGTH = 45
+MAX_INPUT_LENGTH = 120
+USE_CUDA = torch.cuda.is_available()
 
 
 def read_json(path):
