@@ -182,6 +182,7 @@ class Prediction(nn.Module):
         # Define layers
         self.dropout = nn.Dropout(dropout)
 
+        # constant embedding
         self.embedding_weight = nn.Parameter(torch.randn(1, input_size, hidden_size))
 
         # for Computational symbols and Generated numbers
@@ -211,6 +212,7 @@ class Prediction(nn.Module):
             else:
                 current_node = st[-1]
                 current_embeddings.append(current_node.embedding)
+
         # ** left_childs:          subtree embedding t
         # ** current_embeddings:   goal vector q
         # len(left_childs):        batch_size
@@ -379,7 +381,7 @@ class Merge(nn.Module):
         super(Merge, self).__init__()
 
         self.embedding_size = embedding_size
-        self.hidden_size = hidden_size
+        self.hidden_size    = hidden_size
 
         self.em_dropout = nn.Dropout(dropout)
         self.merge   = nn.Linear(hidden_size * 2 + embedding_size, hidden_size)

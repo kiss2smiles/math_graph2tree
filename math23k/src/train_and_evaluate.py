@@ -148,8 +148,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     encoder_outputs, problem_output = encoder(input_seqs=input_var,
                                               input_lengths=input_length,
                                               batch_graph=batch_graph)
-    # ** encoder_outputs: final_hidden_states h_{s}^{p}
-    # ** problem_output:  root node n0 goal vector q0 = h_{n}^{p} + h_{0}^{p}
     # encoder_outputs: [seq_len, batch_size, hidden_size]
     # problem_output:  [         batch_size, hidden_size]
 
@@ -160,9 +158,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     num_size = max(copy_num_len)  # 文本中出现的数字个数
 
     # 取出文本中所有数字对应embedding
-    # number   embedding 取自encoder_outputs
-    # constant embedding 取自nn.Embedding
-    # operator embedding 取自nn.Embedding
     all_nums_encoder_outputs = get_all_number_encoder_outputs(encoder_outputs=encoder_outputs,
                                                               num_pos=num_pos,
                                                               batch_size=batch_size,
@@ -175,22 +170,12 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     num_start = output_lang.num_start
 
     # node_stacks: TreeNode, 记录节点node中的 goal vector q
-    #   初始根节点n0为goal vector q0 = problem_output
     node_stacks = [[TreeNode(embedding=_, left_flag=False)] for _ in problem_output.split(1, dim=0)]  # [1, hidden_size]
 
     # embedding_stacks: TreeEmbedding, 记录节点node之前的节点的subtree embedding t(list)
-    #   如果为操作符(非叶子节点),此时embedding_stacks添加operator的token embedding e(y|P)，并设置terminal=False
-    #   如果为操作数(左孩子节点),此时embedding_stacks添加operator的token embedding e(y|P)，并设置terminal=True
-    #   如果为操作数(右孩子节点),此时
-    #      初始化右孩子节点的subtree embedding t_r 为token embedding e(y|P)
-    #      弹出左孩子节点(terminal=True)的subtree embedding t_l和根节点的subtree embedding (parent t)
-    #      循环完成merge操作, 得到右孩子节点的最终subtree embedding t_r，并设置terminal=True
     embeddings_stacks = [[] for _ in range(batch_size)]
 
     # left_childs: 记录节点node中当前节点的subtree embedding t
-    #   如果为操作符(非叶子节点),此时left_childs输出为None
-    #   如果为操作数(左孩子节点),此时left_childs输出为左孩子节点的subtree embedding t_l
-    #   如果为操作数(右孩子节点),此时left_childs输出为右孩子节点的subtree embedding t_r
     left_childs       = [None for _ in range(batch_size)]
 
     # 先生成根节点，再生成左子树节点，最后生成右子树节点
@@ -214,14 +199,8 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
             mask_nums=num_mask)
         # num_score:               [batch_size, num_size + constant_size]
         # op:                      [batch_size, operator_size]  # 包含5个操作符
-
-        # GOAL VECTOR q
         # current_embeddings:      [batch_size, 1, hidden_size]
-
-        # CONTEXT VECTOR c
         # current_context:         [batch_size, 1, hidden_size]
-
-        # CURRENT NUMBER EMBEDDING MATRIX M_{num}
         # current_nums_embeddings: [batch_size, num_size + constant_size, hidden_size]
 
         # outputs: target分类器分数, y^
