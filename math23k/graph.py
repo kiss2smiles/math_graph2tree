@@ -113,17 +113,17 @@ class Graph_Module(nn.Module):
         ## Returns:
         - graph_encode_features (batch_size, K, out_feat_dim)
         '''
-        nbatches = graph_nodes.size(0)
+        # nbatches = graph_nodes.size(0)
         # adj (batch_size, K, K): adjacency matrix
-        if not bool(graph.numel()):
+        if not bool(graph.numel()):  # 返回元素个数
             adj = self.get_adj(graph_nodes)
-            adj_list = [adj,adj,adj,adj]
+            adj_list = [adj, adj, adj, adj]
         else:
             adj = graph.float()
-            adj_list = [adj[:,0,:],adj[:,1,:],adj[:,2,:],adj[:,0,:]]
+            adj_list = [adj[:, 0, :], adj[:, 1, :], adj[:, 2, :], adj[:, 0, :]]
 
-        g_feature = tuple([l(graph_nodes,x) for l, x in zip(self.graph,adj_list)])
-        g_feature = self.norm(torch.cat(g_feature,2)) + graph_nodes
+        g_feature = tuple([l(graph_nodes, x) for l, x in zip(self.graph, adj_list)])
+        g_feature = self.norm(torch.cat(g_feature, 2)) + graph_nodes
         graph_encode_features = self.feed_foward(g_feature) + g_feature
         
         return adj, graph_encode_features

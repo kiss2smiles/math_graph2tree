@@ -173,30 +173,6 @@ for epoch in range(n_epochs):
         num_value_batch = num_value_batches[idx]
         batch_size      = len(num_value_batch)
 
-        # # debug for bert embedding
-        # # total_len: max_num_size
-        # total_len = len(generate_nums) + max([len(num_value_batch[idx1]) for idx1 in range(batch_size)])
-        #
-        # # current_opr_embedding2: [batch_size, operator_size, 1, 1024]
-        # # current_num_embedding2: [batch_size, number_size + constant_size, 10, 1024]
-        # current_opr_embedding2 = torch.zeros(batch_size, 5,         1,  1024)
-        # current_num_embedding2 = torch.zeros(batch_size, total_len, 10, 1024)
-        #
-        # # 利用bert embedding 初始化number embedding
-        # for idx1 in range(batch_size):
-        #     # numbers: ['1', '3.14', '4', '1', '10', '7', '8']
-        #     for idx2, item in enumerate(generate_nums + num_value_batch[idx1]):
-        #         embedding = get_embedding(item, max_seq_len=10)
-        #         item_len  = embedding.size(0)
-        #         current_num_embedding2[idx1, idx2, :item_len] = embedding
-        #
-        # # 利用bert embedding 初始化operator embedding
-        # for idx1 in range(batch_size):
-        #     # opr_input: ['+', '-', '*', '/', '^']
-        #     for idx2, item in enumerate(opr_input):
-        #         embedding = get_embedding(item)
-        #         current_opr_embedding2[idx1, idx2] = embedding
-
         loss = train_tree(
             input_batch=input_batches[idx],
             input_length=input_lengths[idx],
@@ -228,7 +204,7 @@ for epoch in range(n_epochs):
         eval_total  = 0
         start = time.time()
 
-        for test_batch in test_pairs:
+        for test_batch in test_pairs:  # batch_size = 1
             batch_graph = get_single_example_graph(input_batch=test_batch[0],
                                                    input_length=test_batch[1],
                                                    group=test_batch[7],

@@ -795,133 +795,163 @@ def change_num(num):
 
 
 # num net graph
-def get_lower_num_graph(max_len, sentence_length, num_list, id_num_list, contain_zh_flag=True):
+def get_lower_num_graph(max_len,          # max_seq_len
+                        sentence_length,  # seq_len
+                        num_list,         # num_value
+                        id_num_list,      # num_pos(number)
+                        contain_zh_flag=True):
+
     diag_ele = np.zeros(max_len)
     num_list = change_num(num_list)
     for i in range(sentence_length):
         diag_ele[i] = 1
-    graph = np.diag(diag_ele)
+
+    graph = np.diag(diag_ele)  # 对角矩阵
     if not contain_zh_flag:
         return graph
+
     for i in range(len(id_num_list)):
         for j in range(len(id_num_list)):
             if float(num_list[i]) <= float(num_list[j]):
                 graph[id_num_list[i]][id_num_list[j]] = 1
             else:
                 graph[id_num_list[j]][id_num_list[i]] = 1
-    return graph
+
+    return graph  # [max_len, max_len]
 
 
-def get_greater_num_graph(max_len, sentence_length, num_list, id_num_list, contain_zh_flag=True):
+def get_greater_num_graph(max_len,          # max_seq_len
+                          sentence_length,  # seq_len
+                          num_list,         # num_value
+                          id_num_list,      # num_pos
+                          contain_zh_flag=True):
+
     diag_ele = np.zeros(max_len)
     num_list = change_num(num_list)
     for i in range(sentence_length):
         diag_ele[i] = 1
-    graph = np.diag(diag_ele)
+
+    graph = np.diag(diag_ele)  # 对角矩阵
     if not contain_zh_flag:
         return graph
+
     for i in range(len(id_num_list)):
         for j in range(len(id_num_list)):
             if float(num_list[i]) > float(num_list[j]):
                 graph[id_num_list[i]][id_num_list[j]] = 1
             else:
                 graph[id_num_list[j]][id_num_list[i]] = 1
-    return graph
+    return graph  # [max_len, max_len]
 
 
 # attribute between graph
-def get_attribute_between_graph(input_batch, max_len, id_num_list, sentence_length, quantity_cell_list, contain_zh_flag=True):
+def get_attribute_between_graph(input_batch,         # input_var
+                                max_len,             # max_seq_len
+                                id_num_list,         # num_pos(number)
+                                sentence_length,     # seq_len
+                                quantity_cell_list,  # group_num(attribute)
+                                contain_zh_flag=True):
+
     diag_ele = np.zeros(max_len)
     for i in range(sentence_length):
         diag_ele[i] = 1
-    graph = np.diag(diag_ele)
-    #quantity_cell_list = quantity_cell_list.extend(id_num_list)
+
+    graph = np.diag(diag_ele)  # 对角矩阵
     if not contain_zh_flag:
         return graph
+
+    # connection between number and group_num
     for i in id_num_list:
         for j in quantity_cell_list:
             if i < max_len and j < max_len and j not in id_num_list and abs(i-j) < 4:
                 graph[i][j] = 1
                 graph[j][i] = 1
+
+    # connection between same group_num
     for i in quantity_cell_list:
         for j in quantity_cell_list:
             if i < max_len and j < max_len:
                 if input_batch[i] == input_batch[j]:
                     graph[i][j] = 1
                     graph[j][i] = 1
-    return graph
+
+    return graph  # [max_len, max_len]
 
 
 # quantity between graph
-def get_quantity_between_graph(max_len, id_num_list, sentence_length, quantity_cell_list, contain_zh_flag=True):
+def get_quantity_between_graph(max_len,             # max_seq_len
+                               id_num_list,         # num_pos(number)
+                               sentence_length,     # seq_len
+                               quantity_cell_list,  # group_num(attribute)
+                               contain_zh_flag=True):
+
     diag_ele = np.zeros(max_len)
     for i in range(sentence_length):
         diag_ele[i] = 1
-    graph = np.diag(diag_ele)
+
+    graph = np.diag(diag_ele)  # 对角矩阵
     if not contain_zh_flag:
         return graph
+
+    # connection between number and group_num
     for i in id_num_list:
         for j in quantity_cell_list:
             if i < max_len and j < max_len and j not in id_num_list and abs(i-j) < 4:
                 graph[i][j] = 1
                 graph[j][i] = 1
+
+    # connection between number
     for i in id_num_list:
         for j in id_num_list:
             graph[i][j] = 1
             graph[j][i] = 1
-    return graph
+
+    return graph  # [max_len, max_len]
 
 
 # quantity cell graph
-def get_quantity_cell_graph(max_len, id_num_list, sentence_length, quantity_cell_list, contain_zh_flag=True):
+def get_quantity_cell_graph(max_len,             # max_seq_len
+                            id_num_list,         # num_pos(number)
+                            sentence_length,     # seq_len
+                            quantity_cell_list,  # group_num(attribute)
+                            contain_zh_flag=True):
+
     diag_ele = np.zeros(max_len)
     for i in range(sentence_length):
         diag_ele[i] = 1
+
     graph = np.diag(diag_ele)
     if not contain_zh_flag:
         return graph
+
+    # connection between number and group_num
     for i in id_num_list:
         for j in quantity_cell_list:
             if i < max_len and j < max_len and j not in id_num_list and abs(i-j) < 4:
                 graph[i][j] = 1
                 graph[j][i] = 1
-    return graph
+
+    return graph  # [max_len, max_len]
 
 
 # 建立Quantity Cell Graph 和 Quantity Comparison Graph
-def get_single_batch_graph(input_batch, input_length, group, num_value, num_pos):
+def get_single_batch_graph(input_batch,
+                           input_length,
+                           group,
+                           num_value,
+                           num_pos):
+
     batch_graph = []
-    max_len = max(input_length)
+    max_len = max(input_length)  # max_seq_len
+
     for i in range(len(input_length)):
+        input_batch_t      = input_batch[i]   # input_var
+        sentence_length    = input_length[i]  # seq_len
+        quantity_cell_list = group[i]         # group_num(attribute)
+        num_list           = num_value[i]     # num_value
+        id_num_list        = num_pos[i]       # num_pos(number)
 
-        # ** 原始位置中的单词在词典中的索引
-        # input_batch_t      =  [545, 65,  149, 42,  286, 423, 628, 287, 423, 26,
-        #                        154, 65,  58,  59,  114, 1,   61,  26,  157, 65,
-        #                        58,  59,  114, 1,   61,  13,  398, 157, 65,  91,
-        #                        154, 65,  881, 1,   61,  112, 26,  154, 65,  367,
-        #                        114, 23,  295, 6,   1,   13,  801, 286, 423, 8,
-        #                        287, 423, 6,   430, 13]
-
-        # ** 原始文本中的单词个数
-        # sentence_length    =  55
-
-        # ** 原始文本中与数字相关的所有单词信息
-        # quantity_cell_list =  [14, 15, 16, 22, 23, 24, 25, 30, 31, 32,
-        #                        33, 41, 42, 43, 44]
-
-        # ** 原始文本中的所有数字
-        # num_list           =  ['80', '120', '200', '40%']
-
-        # ** 原始文本中的数字在文本中的位置  num_list
-        # num_pos        =  [15, 23, 33, 44]
-
-        input_batch_t      = input_batch[i]
-        sentence_length    = input_length[i]
-        quantity_cell_list = group[i]
-        num_list           = num_value[i]
-        id_num_list        = num_pos[i]
-
-        # build quantity cell graph
+        # Quantity Cell Graph
         graph_newc    = get_quantity_cell_graph(max_len=max_len,
                                                 id_num_list=id_num_list,
                                                 sentence_length=sentence_length,
@@ -933,49 +963,85 @@ def get_single_batch_graph(input_batch, input_length, group, num_value, num_pos)
                                               num_list=num_list,
                                               id_num_list=id_num_list)
 
+        # Quantity Comparison Graph
         graph_lower   = get_lower_num_graph(max_len=max_len,
                                             sentence_length=sentence_length,
                                             num_list=num_list,
                                             id_num_list=id_num_list)
 
-        # build quantity comparison graph
+        # Quantity Quantity graph(数字之间建立无向边)
         graph_quanbet = get_quantity_between_graph(max_len=max_len,
                                                    id_num_list=id_num_list,
                                                    sentence_length=sentence_length,
                                                    quantity_cell_list=quantity_cell_list)
 
-        # Quantity Cell Graph
+        # Quantity Cell Graph(数字与Attribute之间建立无向边)
         graph_attbet  = get_attribute_between_graph(input_batch=input_batch_t,
                                                     max_len=max_len,
                                                     id_num_list=id_num_list,
                                                     sentence_length=sentence_length,
                                                     quantity_cell_list=quantity_cell_list)
 
-        graph_total   = [graph_newc.tolist(), graph_greater.tolist(), graph_lower.tolist(), graph_quanbet.tolist(), graph_attbet.tolist()]
+        graph_total = [
+            graph_newc.tolist(),
+            graph_greater.tolist(),
+            graph_lower.tolist(),
+            graph_quanbet.tolist(),
+            graph_attbet.tolist()
+        ]
         batch_graph.append(graph_total)
-    batch_graph = np.array(batch_graph)
+
+    batch_graph = np.array(batch_graph)  # [batch_size, 5, max_seq_len, max_seq_len]
     return batch_graph
 
 
-def get_single_example_graph(input_batch, input_length, group, num_value, num_pos):
+def get_single_example_graph(input_batch,
+                             input_length,
+                             group,
+                             num_value,
+                             num_pos):
     batch_graph = []
-    max_len = input_length
-    sentence_length = input_length
+    max_len            = input_length  # max_seq_len
+    sentence_length    = input_length  # seq_len
+    quantity_cell_list = group         # group_num(attribute)
+    num_list           = num_value     # num_value
+    id_num_list        = num_pos       # num_pos(number)
 
-    quantity_cell_list = group
+    graph_newc    = get_quantity_cell_graph(max_len=max_len,
+                                            id_num_list=id_num_list,
+                                            sentence_length=sentence_length,
+                                            quantity_cell_list=quantity_cell_list)
 
-    num_list = num_value
-    id_num_list = num_pos
+    graph_quanbet = get_quantity_between_graph(max_len=max_len,
+                                               id_num_list=id_num_list,
+                                               sentence_length=sentence_length,
+                                               quantity_cell_list=quantity_cell_list)
 
-    graph_newc    = get_quantity_cell_graph(max_len, id_num_list, sentence_length, quantity_cell_list)
-    graph_quanbet = get_quantity_between_graph(max_len, id_num_list, sentence_length, quantity_cell_list)
+    graph_attbet  = get_attribute_between_graph(input_batch=input_batch,
+                                                max_len=max_len,
+                                                id_num_list=id_num_list,
+                                                sentence_length=sentence_length,
+                                                quantity_cell_list=quantity_cell_list)
 
-    graph_attbet  = get_attribute_between_graph(input_batch, max_len, id_num_list, sentence_length, quantity_cell_list)
-    graph_greater = get_greater_num_graph(max_len, sentence_length, num_list, id_num_list)
-    graph_lower   = get_greater_num_graph(max_len, sentence_length, num_list, id_num_list)
-    graph_total = [graph_newc.tolist(), graph_greater.tolist(), graph_lower.tolist(), graph_quanbet.tolist(), graph_attbet.tolist()]
+    graph_greater = get_greater_num_graph(max_len=max_len,
+                                          sentence_length=sentence_length,
+                                          num_list=num_list,
+                                          id_num_list=id_num_list)
+
+    graph_lower   = get_greater_num_graph(max_len=max_len,
+                                          sentence_length=sentence_length,
+                                          num_list=num_list,
+                                          id_num_list=id_num_list)
+
+    graph_total = [
+        graph_newc.tolist(),
+        graph_greater.tolist(),
+        graph_lower.tolist(),
+        graph_quanbet.tolist(),
+        graph_attbet.tolist()
+    ]
     batch_graph.append(graph_total)
-    batch_graph = np.array(batch_graph)
+    batch_graph = np.array(batch_graph)  # [1, 5, max_seq_len, max_seq_len]
     return batch_graph
 
 
