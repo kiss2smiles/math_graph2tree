@@ -246,9 +246,61 @@ def load_roth_data(filename):  # load the json data to dict(dict()) for roth dat
     return out_data
 
 
+def seg_and_tag(st, nums, nums_fraction):  # seg the equation and tag the num
+    res = []
+
+    # 处理文本中的分数
+    for n in nums_fraction:
+        if n in st:
+            p_start = st.find(n)
+            p_end = p_start + len(n)
+
+            if p_start > 0:
+                res += seg_and_tag(st[:p_start], nums, nums_fraction)
+
+            if nums.count(n) == 1:
+                res.append("N" + str(nums.index(n)))
+            else:
+                res.append(n)
+
+            if p_end < len(st):
+                res += seg_and_tag(st[p_end:], nums, nums_fraction)
+            return res
+
+    # 处理文本中的百分数
+    # 百分小数 | 百分整数 | 小数 | 整数
+    rule = "\d+\.\d+%" + "|" + "\d+%" + "|" + "\d+\.\d+" + "|" + "\d+"
+    pos_st = re.search(rule, st)
+    # pos_st = re.search("\d+\.\d+%?|\d+%?", st)
+
+    if pos_st:
+        p_start = pos_st.start()
+        p_end = pos_st.end()
+        if p_start > 0:
+            res += seg_and_tag(st[:p_start], nums, nums_fraction)
+        st_num = st[p_start:p_end]
+
+        if nums.count(st_num) == 1:
+            res.append("N" + str(nums.index(st_num)))
+        else:
+            res.append(st_num)
+
+        if p_end < len(st):
+            res += seg_and_tag(st[p_end:], nums, nums_fraction)
+
+        return res
+
+    for ss in st:
+        res.append(ss)
+    return res
+
+
 def transfer_num(data):  # transfer num into "NUM"
     print("Transfer numbers...")
-    pattern = re.compile("\d*\(\d+/\d+\)\d*|\d+\.\d+%?|\d+%?")  # 匹配文本中的所有数字
+    # 分数 | 百分号小数 | 百分号整数 | 小数 | 整数
+    rule = "\d*\(\d+/\d+\)\d*" + "|" + "\d+\.\d+%" + "|" + "\d+\.\d+" + "|" + "\d+%" + "|" + "\d+"
+    pattern = re.compile(rule)
+    # pattern = re.compile("\d*\(\d+/\d+\)\d*|\d+\.\d+%?|\d+%?")  # 匹配文本中的所有数字
 
     pairs = []
     generate_nums = []
@@ -261,11 +313,12 @@ def transfer_num(data):  # transfer num into "NUM"
         seg       = d["segmented_text"].strip().split(" ")
         equations = d["equation"][2:]  # remove "x="
 
+        # 文本中的所有数字
         for s in seg:
             pos = re.search(pattern, s)
             if pos and pos.start() == 0:
-                nums.append(s[pos.start(): pos.end()])
-                input_seq.append("NUM")
+                nums.append(s[pos.start(): pos.end()])  # num_value
+                input_seq.append("NUM")  # input_tokens
                 if pos.end() < len(s):
                     input_seq.append(s[pos.end():])
             else:
@@ -274,63 +327,32 @@ def transfer_num(data):  # transfer num into "NUM"
         if copy_nums < len(nums):
             copy_nums = len(nums)
 
+        # 文本中出现的分数
         nums_fraction = []
         for num in nums:
             if re.search("\d*\(\d+/\d+\)\d*", num):
                 nums_fraction.append(num)
         nums_fraction = sorted(nums_fraction, key=lambda x: len(x), reverse=True)
 
-        def seg_and_tag(st):  # seg the equation and tag the num
-            res = []
-            for n in nums_fraction:
-                if n in st:
-                    p_start = st.find(n)
-                    p_end   = p_start + len(n)
-                    if p_start > 0:
-                        res += seg_and_tag(st[:p_start])
-                    if nums.count(n) == 1:
-                        res.append("N"+str(nums.index(n)))
-                    else:
-                        res.append(n)
-                    if p_end < len(st):
-                        res += seg_and_tag(st[p_end:])
-                    return res
-
-            pos_st = re.search("\d+\.\d+%?|\d+%?", st)
-            if pos_st:
-                p_start = pos_st.start()
-                p_end = pos_st.end()
-                if p_start > 0:
-                    res += seg_and_tag(st[:p_start])
-                st_num = st[p_start:p_end]
-                if nums.count(st_num) == 1:
-                    res.append("N"+str(nums.index(st_num)))
-                else:
-                    res.append(st_num)
-                if p_end < len(st):
-                    res += seg_and_tag(st[p_end:])
-                return res
-            for ss in st:
-                res.append(ss)
-            return res
-
-        out_seq = seg_and_tag(equations)
+        out_seq = seg_and_tag(equations, nums, nums_fraction)  # output_tokens
         for s in out_seq:  # tag the num which is generated
+            # 部分是在nums中出现，但在文本中未出现，或为脏数据
             if s[0].isdigit() and s not in generate_nums and s not in nums:
                 generate_nums.append(s)
                 generate_nums_dict[s] = 0
+
             if s in generate_nums and s not in nums:
                 generate_nums_dict[s] = generate_nums_dict[s] + 1
 
         num_pos = []
         for i, j in enumerate(input_seq):
             if j == "NUM":
-                num_pos.append(i)
+                num_pos.append(i)  # num_pos
         assert len(nums) == len(num_pos)
         pairs.append((input_seq, out_seq, nums, num_pos))
 
     temp_g = []
-    for g in generate_nums:
+    for g in generate_nums:  # 常数项
         if generate_nums_dict[g] >= 5:
             temp_g.append(g)
 
@@ -552,44 +574,6 @@ def indexes_from_sentence(lang, sentence, tree=False):
         res.append(lang.word2index["EOS"])
     return res
 
-
-# # 其中所有数字都被替换为NUM标识
-# pair[0] = input_seq  = 分词后的单词序列
-# pair[1] = output_seq = 分词后的公式的前序表达式(ground_truth)
-# pair[2] = numbers    = 文本中提到的所有数字序列
-# pair[3] = num_pos    = 数字在文本中的所有位置
-# pair[4] = group_num  = 与数字相关的所有单词信息
-# num_stack: 文本中的重复数字在pair[2]中的位置 || 文本中无法识别的数字
-
-# pair[1] =    ['/', '*', 'N1', 'N2', '5']
-# output_cell: [3, 0, 8, 9, 22]
-# pair[2] =    ['5', '16.5', '2.1', '5']
-# num_stack:   [[0, 3]]
-# 表示文本中的重复数字在公式中出现了一次
-
-# pair[1] =    ['/', '-', 'N2', '4', '4']
-# output_cell:
-# pair[2] =    ['4', '1', '36', '4']
-# num_stack:   [[0, 3], [0, 3]]
-# 表示文本中的重复数字在公式中出现了两次
-
-# pair[0] =  ['小',   '芳',  '家', 'NUM', '月份', '用水量', '是', 'NUM', '吨',   '，',
-#             '每吨', '水',   '的', '价格', '是',   'NUM',   '元', '，',  '小',   '芳',
-#             '家',   '一共', '有', 'NUM', '口',   '人',    '，', '平均', '每人', '应交',
-#             '多少', '水费', '？']
-# input_cell = [68,  178, 179, 1,   86,  2,  71,  1,   180, 26,
-#               181, 182, 6,   183, 71,  1,  184, 26,  68,  178,
-#               179, 29,  118, 1,   185, 85, 26,  186, 187, 188,
-#               34,  189, 52]
-# len(input_cell) = 33
-# pair[1] =  ['/', '*', 'N1', 'N2', '5'] => ['/', '*', 'N1', 'N2', 'UNK']
-# output_cell = [3, 0, 8, 9, 22]
-# len(output_cell) = 5
-# pair[2] =  ['5', '16.5', '2.1', '5']
-# pair[3] =  [3, 7, 15, 23]
-# pair[4] =  [3, 4, 5, 4, 5, 7, 17, 18, 19, 22, 23, 24, 25]
-# num_stack: [[0, 3]]
-# 当出现重复数字时，将output_seq中相应的数字位置设置为UNK
 
 def prepare_data(pairs_trained, pairs_tested, trim_min_count, generate_nums, copy_nums, tree=False):
     input_lang = Lang()

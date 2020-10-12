@@ -83,8 +83,8 @@ def get_train_test_fold(ori_path, prefix, data, pairs, group):
 
 data       = load_raw_data("data/Math_23K.json")
 group_data = read_json("data/Math_23K_processed.json")
-# generate_nums: ['1', '3.14'] // 数据集中的常数
-# copy_nums: 文本中最多出现的数字个数
+# generate_nums: 数据集中的所有常数=['1', '3.14']
+# copy_nums:     文本中最多出现的数字个数=15
 pairs, generate_nums, copy_nums = transfer_num(data)
 
 temp_pairs = []
