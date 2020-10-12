@@ -65,17 +65,6 @@ class TreeEmbedding:  # the class save the tree
         self.terminalc = terminal
 
 
-# input_batch(list)       ** 原始文本中单词在词表中的索引
-# input_length(list)      ** 原始文本中单词序列的长度
-# target_batch(list)      ** 输出公式中的单词在词表中的索引
-# target_length(list)     ** 输出公式中单词序列的长度
-
-# nums_stack_batch(list)  ** 原始文本中的重复单词在number_values list中的索引
-# num_size_batch(list)    ** 原始文本中的数字个数
-# generate_nums(list)     ** 原始数据集中所包含的常数(1, 3.14)
-
-# num_pos(list)           ** 原始文本中的数字在原始文本中的位置
-# batch_graph(numpy)      ** 建立好的Quantity Cell Graph 和 Quantity Comparison Graph
 def train_tree(input_batch,       input_length,      target_batch,       target_length,
                nums_stack_batch,  num_size_batch,    generate_nums,
                encoder,           predict,           generate,           merge,
@@ -212,7 +201,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         # num_start: 5  = num index start
         # unk:       22 = UNK word index
 
-        # 预测出每一个target的值(debug)
+        # 预测出每一个target的值
         target_t, generate_input = generate_tree_input(target=target[t].tolist(),
                                                        decoder_output=outputs,
                                                        nums_stack_batch=nums_stack_batch,
@@ -283,7 +272,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                     # op.embedding:        [1, embedding_size]
                     # sub_stree.embedding: [1,    hidden_size]
                     # current_num:         [1,    hidden_size]
-
                     current_num = merge(node_embedding=op.embedding,
                                         sub_tree_1=sub_stree.embedding,
                                         sub_tree_2=current_num)
@@ -322,12 +310,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     return loss.item()  # , loss_0.item(), loss_1.item()
 
 
-# input_batch       ** 原始文本中单词在词表中的索引
-# input_length      ** 原始文本中单词序列的长度
-# generate_nums     ** 原始数据集中所包含的常数(1, 3.14)
-
-# num_pos_batch     ** 原始文本中的数字在原始文本中的位置
-# batch_graph       ** 建立好的Quantity Cell Graph 和 Quantity Comparison Graph
 def evaluate_tree(input_batch, input_length,  generate_nums,
                   encoder,     predict,       generate,      merge,
                   output_lang, num_pos,       batch_graph,

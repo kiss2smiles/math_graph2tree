@@ -31,12 +31,6 @@ MAX_INPUT_LENGTH = 120
 USE_CUDA = torch.cuda.is_available()
 
 
-def read_json(path):
-    with open(path, 'r') as f:
-        file = json.load(f)
-    return file
-
-
 # batch_size = 64
 batch_size = 2
 embedding_size = 128
@@ -50,13 +44,19 @@ ori_path = './data/'
 prefix = '23k_processed.json'
 
 
+def read_json(path):
+    with open(path, 'r') as f:
+        file = json.load(f)
+    return file
+
+
 def get_train_test_fold(ori_path, prefix, data, pairs, group):
     mode_train = 'train'
     mode_valid = 'valid'
     mode_test  = 'test'
     train_path = ori_path + mode_train + prefix
     valid_path = ori_path + mode_valid + prefix
-    test_path  = ori_path + mode_test + prefix
+    test_path  = ori_path + mode_test  + prefix
     train = read_json(train_path)
     valid = read_json(valid_path)
     test  = read_json(test_path)
@@ -81,24 +81,6 @@ def get_train_test_fold(ori_path, prefix, data, pairs, group):
     return train_fold, test_fold, valid_fold
 
 
-def change_num(num):
-    new_num = []
-    for item in num:
-        if '/' in item:
-            new_str = item.split(')')[0]
-            new_str = new_str.split('(')[1]
-            a = float(new_str.split('/')[0])
-            b = float(new_str.split('/')[1])
-            value = a/b
-            new_num.append(value)
-        elif '%' in item:
-            value = float(item[0:-1])/100
-            new_num.append(value)
-        else:
-            new_num.append(float(item))
-    return new_num
-
-
 data       = load_raw_data("data/Math_23K.json")
 group_data = read_json("data/Math_23K_processed.json")
 # generate_nums: ['1', '3.14'] // 数据集中的常数
@@ -108,6 +90,7 @@ pairs, generate_nums, copy_nums = transfer_num(data)
 temp_pairs = []
 for p in pairs:
     temp_pairs.append((p[0], from_infix_to_prefix(p[1]), p[2], p[3]))
+    # pair: (input_seq, output_seq(infix), numbers, num_pos)
 pairs = temp_pairs
 
 train_fold, test_fold, valid_fold = get_train_test_fold(ori_path=ori_path,
@@ -135,15 +118,6 @@ with open("data/input_vocab.json", "w", encoding="utf-8") as writer:
 # save output vocab
 with open("data/output_vocab.json", "w", encoding="utf-8") as writer:
     json.dump(output_lang.word2index, writer, ensure_ascii=False, indent=4)
-
-# output_vocab:
-# {
-#   '*': 0, '-': 1, '+': 2, '/': 3, '^': 4,
-#   '1': 5, '3.14': 6,
-#   'N0': 7,  'N1': 8,  'N2':  9,  'N3':  10, 'N4':  11, 'N5':  12, 'N6':  13, 'N7': 14,
-#   'N8': 15, 'N9': 16, 'N10': 17, 'N11': 18, 'N12': 19, 'N13': 20, 'N14': 21,
-#   'UNK': 22
-# }
 
 # output_lang.n_words: 23
 # copy_nums:           15 (N0-N14)
