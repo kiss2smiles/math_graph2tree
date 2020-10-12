@@ -142,6 +142,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
     # 1. encoder
     # 在RNN Encoder之后接上一个batch_graph，即将图的信息融入网络中
+
     # input_var(Tensor):    [seq_len, batch_size]
     # input_length(list):   [batch_size]
     # batch_graph(Tensor):  [batch_size, 5, seq_len, seq_len]
@@ -180,7 +181,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
     # 先生成根节点，再生成左子树节点，最后生成右子树节点
     for t in range(max_target_length):
-        # 2. predict
+        # 2. prediction
         # encoder_outputs:          node representation(words)
         # all_nums_encoder_outputs: node representation(numbers)
 
@@ -198,12 +199,11 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
             seq_mask=seq_mask,
             mask_nums=num_mask)
         # num_score:               [batch_size, num_size + constant_size]
-        # op:                      [batch_size, operator_size]  # 包含5个操作符
+        # op:                      [batch_size,  operator_size]
         # current_embeddings:      [batch_size, 1, hidden_size]
         # current_context:         [batch_size, 1, hidden_size]
         # current_nums_embeddings: [batch_size, num_size + constant_size, hidden_size]
 
-        # outputs: target分类器分数, y^
         outputs = torch.cat((op, num_score), dim=1)
         # outputs: [batch_size, operator_size + num_size + constant_size]
 
@@ -246,6 +246,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                                                target[t].tolist(),
                                                embeddings_stacks):
 
+            # 这一段代码的作用
             if len(node_stack) != 0:
                 node = node_stack.pop()
             else:

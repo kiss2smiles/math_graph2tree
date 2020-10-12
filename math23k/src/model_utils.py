@@ -200,9 +200,6 @@ def generate_tree_input(target, decoder_output, nums_stack_batch, num_start, unk
     # target:         [batch_size]
     # decoder_output: [batch_size, num_size + constant_size + operator_size]
 
-    print("num_start = ", num_start)
-    print("unk = ", unk)
-
     # 如果存在重复的数，则取概率最大的重复数位置的pos作为target的输出
     target_input = copy.deepcopy(target)
     for i in range(len(target)):
