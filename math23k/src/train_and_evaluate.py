@@ -62,7 +62,7 @@ class TreeEmbedding:  # the class save the tree
     def __init__(self, embedding, terminal=False):
         # embedding: batch_size * hidden_size
         self.embedding = embedding
-        self.terminalc = terminal
+        self.terminal  = terminal
 
 
 def train_tree(input_batch,       input_length,      target_batch,       target_length,
@@ -144,7 +144,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     max_target_length = max(target_length)  # 最大的公式长度
     all_node_outputs = []
 
-    copy_num_len = [len(_) for _ in num_pos]
+    copy_num_len = [len(_) for _ in num_pos]  # numbers size
     num_size = max(copy_num_len)  # 文本中出现的数字个数
 
     # 取出文本中所有数字对应embedding
@@ -160,7 +160,8 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
     num_start = output_lang.num_start
 
     # node_stacks: TreeNode, 记录节点node中的 goal vector q
-    node_stacks = [[TreeNode(embedding=_, left_flag=False)] for _ in problem_output.split(1, dim=0)]  # [1, hidden_size]
+    node_stacks = [
+        [TreeNode(embedding=_, left_flag=False)] for _ in problem_output.split(1, dim=0)]  # [1, hidden_size]
 
     # embedding_stacks: TreeEmbedding, 记录节点node之前的节点的subtree embedding t(list)
     embeddings_stacks = [[] for _ in range(batch_size)]
@@ -236,9 +237,12 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                                                embeddings_stacks):
 
             # 这一段代码的作用
-            if len(node_stack) != 0:
+            if len(node_stack) != 0:  # 此时节点的goal vector q不为空，因此弹出该节点
                 node = node_stack.pop()
-            else:
+            else:   # 此时节点的goal vector q为空，则跳过
+                print("i = ", i)
+                print("len(node_stack) = ", len(node_stack))
+                exit(0)
                 left_childs.append(None)
                 continue
 
