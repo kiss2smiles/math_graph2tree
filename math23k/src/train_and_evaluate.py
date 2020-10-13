@@ -169,8 +169,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
     # left_childs: 记录节点node中当前节点的subtree embedding t
     left_childs       = [None for _ in range(batch_size)]
-    print("target_batch = ", target_batch)
-    print("target_length = ", target_length)
 
     # 先生成根节点，再生成左子树节点，最后生成右子树节点
     for t in range(max_target_length):
@@ -293,13 +291,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
             else:
                 left_childs.append(None)  # 此时为非叶子节点
 
-            print("len(node_stack) = ", len(node_stack))
-            print("len(embedding_stacks) = ", len(embeddings_stacks[0]))
-            print("len(left_childs) = ", len(left_childs))
-            print("i = ", i)
-            print("\n")
-
-    exit(0)
     all_node_outputs = torch.stack(all_node_outputs, dim=1)  # B x S x N
     # all_node_outputs: [batch_size, tgt_len, operator_size + num_size + constant_size]
 

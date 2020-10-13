@@ -30,9 +30,7 @@ MAX_OUTPUT_LENGTH = 45
 MAX_INPUT_LENGTH = 120
 USE_CUDA = torch.cuda.is_available()
 
-
-# batch_size = 64
-batch_size = 1
+batch_size = 64
 embedding_size = 128
 hidden_size = 512
 n_epochs = 80
