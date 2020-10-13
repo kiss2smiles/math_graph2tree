@@ -6,10 +6,12 @@ import torch.nn.functional as F
 cur_path = os.path.abspath(__file__)
 cur_dir = os.path.dirname(cur_path)
 par_dir = os.path.dirname(cur_dir)
+gra_dir = os.path.dirname(par_dir)
 sys.path.append(cur_dir)
 sys.path.append(par_dir)
+sys.path.append(gra_dir)
 
-from math23k.GraphConvolution import GraphConvolution
+from math23k.src.GraphConvolution import GraphConvolution
 
 
 class GCN(nn.Module):
@@ -27,6 +29,8 @@ class GCN(nn.Module):
         self.dropout = dropout
 
     def forward(self, x, adj):
+        # x:   [batch_size, seq_len, hidden_size]
+        # adj: [batch_size, seq_len, seq_len]
         x = F.relu(self.gc1(x, adj))
         x = F.dropout(x, self.dropout, training=self.training)
         x = self.gc2(x, adj)
