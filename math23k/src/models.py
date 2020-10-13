@@ -240,8 +240,9 @@ class Prediction(nn.Module):
                 current_node_temp.append(g * t)       # q_l
 
             else:  # left sub-tree embedding is not None, generate right child node
+                # 说明此时存在sub-tree embedding
 
-                # 3. Right Sub-Goal Generation
+                # 3. Right   -Goal Generation
                 # 若此时左子树不为空，则生成右孩子节点
                 # 当左孩子为叶子节点时，sub-tree embedding为embedding matrix，否则由sub_tree embedding 由merge后的结果得到
                 ld = self.dropout(l)                                       # ld = sub-tree left tree embedding
@@ -293,7 +294,7 @@ class Prediction(nn.Module):
         # 1. Top-Down Goal Decomposition
         # current_node:    goal    vector q
         # current_context: context vector c
-        leaf_input = torch.cat((current_node, current_context), 2)
+        leaf_input = torch.cat((current_node, current_context), dim=2)
         # leaf_input: concat(q; c)
         # leaf_input: [batch_size, 1, 2*hidden_size]
 

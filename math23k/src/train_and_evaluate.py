@@ -161,13 +161,16 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
 
     # node_stacks: TreeNode, 记录节点node中的 goal vector q
     node_stacks = [
-        [TreeNode(embedding=_, left_flag=False)] for _ in problem_output.split(1, dim=0)]  # [1, hidden_size]
+        [TreeNode(embedding=_, left_flag=False)]
+        for _ in problem_output.split(1, dim=0)]  # [1, hidden_size] * batch_size
 
     # embedding_stacks: TreeEmbedding, 记录节点node之前的节点的subtree embedding t(list)
     embeddings_stacks = [[] for _ in range(batch_size)]
 
     # left_childs: 记录节点node中当前节点的subtree embedding t
     left_childs       = [None for _ in range(batch_size)]
+    print("target_batch = ", target_batch)
+    print("target_length = ", target_length)
 
     # 先生成根节点，再生成左子树节点，最后生成右子树节点
     for t in range(max_target_length):
@@ -180,9 +183,10 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         # padding_hidden:           [1,       hidden_size]
         # seq_mask:                 [batch_size, seq_len]
         # num_mask:                 [batch_size, num_size + constant_size]
+        print("len(node_stacks) = ", len(node_stacks[0]))
         num_score, op, current_embeddings, current_context, current_nums_embeddings = predict(
             node_stacks=node_stacks,
-            left_childs=left_childs,
+            left_childs=left_childs,  # update
             encoder_outputs=encoder_outputs,
             num_pades=all_nums_encoder_outputs,
             padding_hidden=padding_hidden,
@@ -190,8 +194,11 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
             mask_nums=num_mask)
         # num_score:               [batch_size, num_size + constant_size]
         # op:                      [batch_size,  operator_size]
+        # ** GOAL VECTOR q
         # current_embeddings:      [batch_size, 1, hidden_size]
+        # ** CONTEXT VECTOR c
         # current_context:         [batch_size, 1, hidden_size]
+        # ** TOKEN EMBEDDING e(y|P)
         # current_nums_embeddings: [batch_size, num_size + constant_size, hidden_size]
 
         outputs = torch.cat((op, num_score), dim=1)
@@ -202,7 +209,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         # num_start: 5  = num index start
         # unk:       22 = UNK word index
 
-        # 预测出每一个target的值
+        # 处理存在重复数字的情况
         target_t, generate_input = generate_tree_input(target=target[t].tolist(),
                                                        decoder_output=outputs,
                                                        nums_stack_batch=nums_stack_batch,
@@ -225,7 +232,7 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                                                        current_context=current_context)
         # left_child:  h_l    = [batch_size,    hidden_size]
         # right_child: h_r    = [batch_size,    hidden_size]
-        # node_label:  e(y|P) = [batch_size, embedding_size]
+        # node_label:  e(y|P) = [batch_size, embedding_size] (current node token embedding)
 
         left_childs = []
         # 在每个batch中依次生成left_node, operator_node, right_node
@@ -235,14 +242,10 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
                                                node_stacks,
                                                target[t].tolist(),
                                                embeddings_stacks):
-
             # 这一段代码的作用
             if len(node_stack) != 0:  # 此时节点的goal vector q不为空，因此弹出该节点
                 node = node_stack.pop()
             else:   # 此时节点的goal vector q为空，则跳过
-                print("i = ", i)
-                print("len(node_stack) = ", len(node_stack))
-                exit(0)
                 left_childs.append(None)
                 continue
 
@@ -290,6 +293,13 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
             else:
                 left_childs.append(None)  # 此时为非叶子节点
 
+            print("len(node_stack) = ", len(node_stack))
+            print("len(embedding_stacks) = ", len(embeddings_stacks[0]))
+            print("len(left_childs) = ", len(left_childs))
+            print("i = ", i)
+            print("\n")
+
+    exit(0)
     all_node_outputs = torch.stack(all_node_outputs, dim=1)  # B x S x N
     # all_node_outputs: [batch_size, tgt_len, operator_size + num_size + constant_size]
 
@@ -457,7 +467,7 @@ def evaluate_tree(input_batch, input_length,  generate_nums,
                 current_out = copy.deepcopy(b.out)
 
                 out_token = int(ti)
-                current_out.append(out_token)
+                current_out.append(out_token)  # generate_input 为预测出来的token index
 
                 node = current_node_stack[0].pop()
 
