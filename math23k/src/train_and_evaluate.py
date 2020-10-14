@@ -181,7 +181,6 @@ def train_tree(input_batch,       input_length,      target_batch,       target_
         # padding_hidden:           [1,       hidden_size]
         # seq_mask:                 [batch_size, seq_len]
         # num_mask:                 [batch_size, num_size + constant_size]
-        print("len(node_stacks) = ", len(node_stacks[0]))
         num_score, op, current_embeddings, current_context, current_nums_embeddings = predict(
             node_stacks=node_stacks,
             left_childs=left_childs,  # update

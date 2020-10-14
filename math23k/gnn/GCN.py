@@ -11,7 +11,7 @@ sys.path.append(cur_dir)
 sys.path.append(par_dir)
 sys.path.append(gra_dir)
 
-from math23k.src.GraphConvolution import GraphConvolution
+from math23k.gnn.GraphConvolution import GraphConvolution
 
 
 class GCN(nn.Module):

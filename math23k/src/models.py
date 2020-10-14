@@ -11,7 +11,7 @@ gra_dir  = os.path.dirname(par_dir)
 sys.path.append(cur_dir)
 sys.path.append(par_dir)
 sys.path.append(gra_dir)
-from math23k.src.Graph_Module import Graph_Module
+from math23k.gnn.Graph_Module import Graph_Module
 
 
 class Score(nn.Module):

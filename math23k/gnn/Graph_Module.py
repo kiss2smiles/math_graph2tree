@@ -11,7 +11,7 @@ gra_dir  = os.path.dirname(par_dir)
 sys.path.append(cur_dir)
 sys.path.append(par_dir)
 sys.path.append(gra_dir)
-from math23k.src.GCN import GCN
+from math23k.gnn.GCN import GCN
 
 
 # Graph Module
