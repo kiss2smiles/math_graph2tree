@@ -30,16 +30,17 @@ MAX_OUTPUT_LENGTH = 45
 MAX_INPUT_LENGTH = 120
 USE_CUDA = torch.cuda.is_available()
 
-batch_size = 64
+# batch_size     = 64
+batch_size = 2
 embedding_size = 128
-hidden_size = 512
-n_epochs = 80
-learning_rate = 1e-3
-weight_decay = 1e-5
-beam_size = 5
-n_layers = 2
+hidden_size    = 512
+n_epochs       = 80
+learning_rate  = 1e-3
+weight_decay   = 1e-5
+beam_size      = 5
+n_layers       = 2
 ori_path = './data/'
-prefix = '23k_processed.json'
+prefix   = '23k_processed.json'
 
 
 def read_json(path):
@@ -75,7 +76,7 @@ def get_train_test_fold(ori_path, prefix, data, pairs, group):
             test_fold.append(pair)
         else:
             valid_fold.append(pair)
-    # pair: (input_seq, output_seq(prefix), numbers, num_pos, group_num)
+    # pair: (input_seq, output_seq(infix), numbers, num_pos, group_num)
     return train_fold, test_fold, valid_fold
 
 
@@ -88,7 +89,7 @@ pairs, generate_nums, copy_nums = transfer_num(data)
 temp_pairs = []
 for p in pairs:
     temp_pairs.append((p[0], from_infix_to_prefix(p[1]), p[2], p[3]))
-    # pair: (input_seq, output_seq(infix), numbers, num_pos)
+    # pair: (input_seq, output_seq(prefix), numbers, num_pos)
 pairs = temp_pairs
 
 train_fold, test_fold, valid_fold = get_train_test_fold(ori_path=ori_path,
@@ -98,7 +99,7 @@ train_fold, test_fold, valid_fold = get_train_test_fold(ori_path=ori_path,
                                                         group=group_data)
 
 best_acc_fold = []
-pairs_tested = test_fold
+pairs_tested  = test_fold
 # pairs_trained = valid_fold
 pairs_trained = train_fold
 
@@ -149,6 +150,7 @@ if USE_CUDA:
     generate.cuda()
     merge.cuda()
 
+# 常数在output_vocab的索引
 generate_num_ids = []
 for num in generate_nums:
     generate_num_ids.append(output_lang.word2index[num])

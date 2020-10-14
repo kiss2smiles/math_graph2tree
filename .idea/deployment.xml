@@ -5,7 +5,7 @@
       <paths name="server_lm03">
         <serverdata>
           <mappings>
-            <mapping deploy="/data/lkh/math_graph2tree" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/data/lkh/mwp/math_graph2tree" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

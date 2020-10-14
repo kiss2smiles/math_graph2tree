@@ -212,7 +212,7 @@ class Prediction(nn.Module):
                 mask_nums):
 
         current_embeddings = []
-        for st in node_stacks:  # node_stacks记录节点的goal vector q
+        for st in node_stacks:  # node_stacks记录节点的hidden states h
             if len(st) == 0:
                 current_embeddings.append(padding_hidden)
             else:
@@ -220,12 +220,10 @@ class Prediction(nn.Module):
                 current_embeddings.append(current_node.embedding)
 
         # ** left_childs:          subtree embedding t
-        # ** current_embeddings:   goal vector q
-        # len(left_childs):        batch_size
-        # len(current_embeddings): batch_size
-        # left_childs item:        [1, hidden_size]
-        # current_embeddings item: [1, hidden_size]
-        # 初始时，current_embeddings为problem_output
+        # ** current_embeddings:   hidden_states h
+
+        # left_childs:        [1, hidden_size] * batch_size
+        # current_embeddings: [1, hidden_size] * batch_size
 
         current_node_temp = []  # updated goal vector q
         for l, c in zip(left_childs, current_embeddings):
@@ -255,12 +253,10 @@ class Prediction(nn.Module):
 
         current_node = torch.stack(current_node_temp)
         current_embeddings = self.dropout(current_node)
-        # current_node: goal vector q
-        # current_node: [batch_size, 1, hidden_size]
-
         # current_embeddings: goal vector q
-        # encoder_outputs:    final hidden state h_{s}^{p}
+        # current_embeddings: [batch_size, 1, hidden_size]
 
+        # encoder_outputs:    final hidden state h_{s}^{p}
         # current_embeddings: [1,       batch_size, hidden_size]
         # encoder_outputs:    [seq_len, batch_size, hidden_size]
         current_attn = self.attn(current_embeddings.transpose(0, 1), encoder_outputs, seq_mask)
@@ -270,6 +266,7 @@ class Prediction(nn.Module):
         # current_attn:    a_{s}
         # encoder_outputs: final hidden state h_{s}^{p}
         current_context = current_attn.bmm(encoder_outputs.transpose(0, 1))  # B x 1 x N
+
         # 1. Top-Down Goal Decomposition
         # current_context: context vector c
         # current_context: [batch_size, 1, hidden_size]

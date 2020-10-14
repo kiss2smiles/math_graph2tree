@@ -48,15 +48,12 @@ class PositionwiseFeedForward(nn.Module):
 
 class Graph_Module(nn.Module):
     def __init__(self, indim, hiddim, outdim, dropout=0.3):
-        # indim:  hidden_size(512)
-        # hiddim: hidden_size(512)
-        # outdim: hidden_size(512)
         super(Graph_Module, self).__init__()
         '''
         ## Variables:
-        - indim: dimensionality of input node features
-        - hiddim: dimensionality of the joint hidden embedding
-        - outdim: dimensionality of the output node features
+        - indim(hidden_size(512)):  dimensionality of input node features
+        - hiddim(hidden_size(512)): dimensionality of the joint hidden embedding
+        - outdim(hidden_size(512)): dimensionality of the output node features
         - combined_feature_dim: dimensionality of the joint hidden embedding for graph
         - K: number of graph nodes/objects on the image
         '''
@@ -64,7 +61,6 @@ class Graph_Module(nn.Module):
         self.h = 4  # multiGCN: head = 4
         self.d_k = outdim // self.h  # 128
 
-        # 4层GCN网络
         self.graph = clones(module=GCN(in_feat_dim=indim,      # 512
                                        nhid=hiddim,            # 512
                                        out_feat_dim=self.d_k,  # 128
@@ -144,21 +140,21 @@ class Graph_Module(nn.Module):
         # adj (batch_size, K, K): adjacency matrix
 
         # graph.numel(): 返回数组中的元素个数
+        # adj: [batch_size, 5, seq_len, seq_len]
+        # adj[:, 1, :]: Quantity Comparison Graph
+        # adj[:, 4, :]: Quantity Cell Graph
         if not bool(graph.numel()):
             adj = self.get_adj(graph_nodes)
             adj_list = [adj, adj, adj, adj]
         else:
             adj = graph.float()
-            # adj: [batch_size, 5, seq_len, seq_len]
-            # adj[:, 1, :]: Quantity Comparison Graph
-            # adj[:, 4, :]: Quantity Cell Graph
             adj_list = [adj[:, 1, :], adj[:, 1, :], adj[:, 4, :], adj[:, 4, :]]
 
         g_feature = tuple([l(graph_nodes, x) for l, x in zip(self.graph, adj_list)])
         g_feature = self.norm(torch.cat(g_feature, dim=2)) + graph_nodes  # Norm & Add => Z => Z^
         # g_feature: [batch_size, seq_len, hidden_size]
 
-        graph_encode_features = self.feed_foward(g_feature) + g_feature   # Norm & Add => Z-
+        graph_encode_features = self.feed_foward(g_feature) + g_feature   # Norm & Add => Z- => Z_{g}
         # graph_encode_features: [batch_size, seq_len, hidden_size]
 
         # adj: [batch_size, 5, seq_len, seq_len]
